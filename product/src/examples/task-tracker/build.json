@@ -1,0 +1,6 @@
+{
+  "packaging_profile": "self-contained-json",
+  "providers": [
+    "microsoft-copilot"
+  ]
+}

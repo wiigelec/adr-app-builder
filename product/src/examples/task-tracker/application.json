@@ -1,0 +1,6 @@
+{
+  "id": "task-tracker",
+  "name": "ADR One-File Task Tracker",
+  "version": "test-0.3",
+  "description": "Reference ADR App Builder fixture for self-contained provider realization."
+}

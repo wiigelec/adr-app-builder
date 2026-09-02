@@ -1,0 +1,111 @@
+{
+  "adr_realization": {
+    "format": "adr-app-builder/self-contained-json",
+    "format_version": 1,
+    "authority": {
+      "generated_realization_is_normative": false,
+      "dataset_is_authoritative_for_committed_application_state": true
+    },
+    "provider": {
+      "profile": "microsoft-copilot",
+      "name": "Microsoft Copilot"
+    },
+    "application": {
+      "id": "task-tracker",
+      "name": "ADR One-File Task Tracker",
+      "version": "test-0.3",
+      "description": "Reference ADR App Builder fixture for self-contained provider realization."
+    },
+    "initialization": {
+      "mode": "initialize",
+      "instructions": [
+        "Initialize this self-contained ADR-derived application when the file is attached to a fresh Copilot chat.",
+        "Read the embedded Ruleset before interpreting application state.",
+        "Treat only the embedded Dataset as authoritative committed application state.",
+        "Do not treat chat memory or model working memory as committed state.",
+        "During initialization, identify the application and instance, summarize current Dataset state, and offer available application interactions without mutating the Dataset."
+      ]
+    },
+    "ruleset": {
+      "purpose": "Govern a tiny task tracker whose committed state is held in the Dataset.",
+      "authority": {
+        "dataset_is_authoritative": true,
+        "chat_memory_is_authoritative": false,
+        "agent_working_memory_is_authoritative": false
+      },
+      "standard_interactions": {
+        "help": {
+          "effect": "read_only",
+          "behavior": "Explain available operations without modifying Dataset state."
+        },
+        "status": {
+          "effect": "read_only",
+          "behavior": "Summarize authoritative Dataset state without modifying it."
+        }
+      },
+      "task_states": [
+        "todo",
+        "doing",
+        "done"
+      ],
+      "transitions": {
+        "create_task": {
+          "from": null,
+          "to": "todo"
+        },
+        "start_task": {
+          "from": [
+            "todo"
+          ],
+          "to": "doing"
+        },
+        "complete_task": {
+          "from": [
+            "todo",
+            "doing"
+          ],
+          "to": "done"
+        },
+        "reopen_task": {
+          "from": [
+            "done"
+          ],
+          "to": "todo"
+        },
+        "rename_task": {
+          "from": [
+            "todo",
+            "doing",
+            "done"
+          ],
+          "to": "same"
+        }
+      },
+      "invariants": [
+        "Every task id is unique.",
+        "Every task state is todo, doing, or done.",
+        "Completed tasks have non-null completed_at.",
+        "Non-completed tasks have completed_at null."
+      ]
+    },
+    "dataset": {
+      "instance": {
+        "id": "demo-builder-001",
+        "ruleset_binding": "embedded"
+      },
+      "state": {
+        "next_task_id": 2,
+        "tasks": [
+          {
+            "id": 1,
+            "title": "Validate ADR App Builder output",
+            "state": "todo",
+            "created_at": "2026-09-02",
+            "completed_at": null
+          }
+        ]
+      },
+      "history": []
+    }
+  }
+}

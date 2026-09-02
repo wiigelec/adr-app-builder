@@ -1,0 +1,15 @@
+{
+  "profile_version": 1,
+  "id": "generic-self-contained",
+  "provider": "generic",
+  "packaging": "self-contained-json",
+  "initialization": {
+    "mode": "initialize",
+    "instructions": [
+      "Recognize this artifact as a self-contained ADR-derived application realization.",
+      "Read the Ruleset before interpreting application state.",
+      "Treat the Dataset as authoritative committed application state.",
+      "Initialization is read-only unless the Ruleset explicitly defines and accepts a state transition."
+    ]
+  }
+}

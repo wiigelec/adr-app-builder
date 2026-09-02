@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+BASE = ROOT / "product" / "src" / "examples" / "task-tracker"
+BUILDER = ROOT / "product" / "src" / "app_builder.py"
+EXPECTED = ROOT / "product" / "validation" / "expected" / "task-tracker-copilot.json"
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def run_build(outdir):
+    subprocess.run([
+        "python3", str(BUILDER),
+        "--application", str(BASE / "application.json"),
+        "--ruleset", str(BASE / "ruleset.json"),
+        "--dataset", str(BASE / "dataset.json"),
+        "--build", str(BASE / "build.json"),
+        "--output-dir", str(outdir),
+    ], cwd=ROOT, check=True)
+
+def main():
+    ruleset_hash = sha(BASE / "ruleset.json")
+    dataset_hash = sha(BASE / "dataset.json")
+    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        pa, pb = Path(a), Path(b)
+        run_build(pa)
+        run_build(pb)
+        out_a = pa / "microsoft-copilot.json"
+        out_b = pb / "microsoft-copilot.json"
+        if out_a.read_bytes() != EXPECTED.read_bytes():
+            raise SystemExit("FAIL: generated Copilot fixture differs from expected output")
+        if out_a.read_bytes() != out_b.read_bytes():
+            raise SystemExit("FAIL: repeated builds are not byte-identical")
+        if sha(BASE / "ruleset.json") != ruleset_hash:
+            raise SystemExit("FAIL: build mutated source Ruleset")
+        if sha(BASE / "dataset.json") != dataset_hash:
+            raise SystemExit("FAIL: build mutated source Dataset")
+        artifact = json.loads(out_a.read_text(encoding="utf-8"))["adr_realization"]
+        source_ruleset = json.loads((BASE / "ruleset.json").read_text(encoding="utf-8"))
+        source_dataset = json.loads((BASE / "dataset.json").read_text(encoding="utf-8"))
+        if artifact["ruleset"] != source_ruleset:
+            raise SystemExit("FAIL: generated Ruleset differs from source")
+        if artifact["dataset"] != source_dataset:
+            raise SystemExit("FAIL: generated Dataset differs from source")
+        if artifact["provider"]["profile"] != "microsoft-copilot":
+            raise SystemExit("FAIL: provider profile identity incorrect")
+        if artifact["initialization"].get("mode") != "initialize":
+            raise SystemExit("FAIL: initialization mode missing")
+    print("PASS: app-builder FS-001 generation is deterministic, source-preserving, and matches expected Copilot realization.")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
