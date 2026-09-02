@@ -37,6 +37,6 @@ application source
          generated provider set
 ```
 
-The initial Functional Set supports deterministic self-contained JSON output and provider profiles, including a Microsoft Copilot realization profile.
+The initial Functional Set supports deterministic self-contained JSON output, explicit packaging and provider profiles, dual ADR/App Builder provenance, and complete-realization preservation for governed Dataset updates.
 
 `main` represents accepted repository state. Product work follows Design → Planning → Build → Validation → Semantic Review → Acceptance.

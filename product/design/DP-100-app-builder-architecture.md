@@ -8,91 +8,54 @@ depends_on: []
 
 ## Purpose
 
-ADR App Builder is realization tooling for constructing deployable ADR-derived application artifacts and provider sets from application-owned source material.
+ADR App Builder is realization tooling for constructing deployable ADR-derived application artifacts and provider sets from application-owned source material. It is not the ADR framework itself and does not create or replace ADR normative meaning.
 
-It is not the ADR framework itself and does not create or replace ADR normative meaning.
+## Upstream ADR Boundary
 
-## Upstream Semantic Boundary
+App Builder tracks the current `main` branch of `wiigelec/adr` when building a new application realization. Each build resolves ADR `main` to one exact commit before generation and records that commit in the generated realization.
 
-App Builder consumes ADR semantics as an upstream contract.
-
-The initial Product Design is aligned to the published ADR FS-003 candidate at commit `ef8d8bcdcf152364dd719038d82e90bb4c321b49`, which defines application realization and initialization while keeping provider, encoding, packaging, and builder choices outside ADR core.
-
-App Builder must preserve applicable ADR Agent, Dataset, Ruleset, application-instance, binding, initialization, authority, and transition semantics.
+A generated realization also records the exact App Builder implementation commit that produced it. These commits are provenance and future-upgrade anchors, not runtime authorities.
 
 ## Canonical Application Source Model
 
-App Builder treats an application build source as semantically distinct inputs:
-
-- **application definition** — application identity and application-owned realization metadata;
-- **Ruleset source** — governed application semantics;
-- **Dataset source** — an application instance's authoritative or initial committed state;
-- **build definition** — selected packaging and provider targets.
-
-These inputs may be stored separately for maintainability even when a generated target co-locates them physically.
-
-The builder source model is not itself an ADR-mandated schema. It is this product's authoring model.
-
-## Packaging Profiles
-
-A packaging profile defines how application source material is physically assembled.
-
-The initial product supports a **self-contained single-file** packaging profile in which application identity, initialization material, Ruleset, and Dataset are emitted in one artifact.
-
-Future profiles may emit shared-Ruleset plus independent-Dataset packages, multi-file bundles, repository-backed realizations, or other arrangements.
-
-Packaging must not collapse Ruleset and Dataset semantic distinction merely because material is physically co-located.
-
-## Provider Profiles
-
-A provider profile adapts a packaged realization for a target Agent environment.
-
-A provider profile may define bootstrap wording, interaction hints, provider metadata, ordering, or other environment-facing material.
-
-Provider adaptation must not silently change application-owned Ruleset or Dataset semantics.
-
-Provider-specific material is realization metadata, not committed Dataset authority.
-
-## Provider Sets
-
-One build definition may select multiple provider profiles.
-
-The resulting **provider set** is a group of generated realizations derived from the same application, Ruleset, Dataset source, and packaging intent.
-
-Provider-set members may differ in provider-facing bootstrap or presentation while preserving the application semantics required by their supported operations.
+App Builder consumes semantically distinct application definition, Ruleset, Dataset, and build-definition inputs. The application definition includes application identity and any application-owned initialization semantics. The build definition selects packaging and provider profiles.
 
 ## Initialization
 
-Generated realizations shall provide sufficient initialization material for their target profile to bind a fresh Agent operation to the application identity, selected application instance, applicable Ruleset authority where consequential, and relevant Dataset state.
+Application-owned initialization semantics and provider bootstrap adaptation are distinct. Provider adaptation may add environment-specific guidance but shall not replace, weaken, or reinterpret application-owned initialization, Ruleset, Dataset, instance, authority, or transition meaning.
 
-Initialization material must not itself mutate Dataset state.
+Initialization shall not implicitly mutate Dataset state. Explicit initialization-associated transitions remain application-owned and Ruleset-governed.
 
-## Generated Artifact Authority
+## Packaging Profiles
 
-Generated artifacts are deployable realizations.
+A packaging profile defines physical assembly and preservation behavior. FS-001 provides `self-contained-json`, which co-locates provenance, application material, initialization material, Ruleset, and Dataset while preserving their semantic roles.
 
-They are not independent ADR normative authority and are not independent App Builder design authority.
+For mutable self-contained realizations, governed Dataset state may change while non-Dataset realization material is preserved. Writeback returns the complete realization rather than a Dataset-only fragment.
 
-For mutable self-contained applications, a generated artifact may subsequently carry newer authoritative Dataset state than the original builder source. That runtime state evolution does not retroactively redefine the source Ruleset or builder semantics.
+## Provider Profiles
+
+A provider profile adapts initialization and presentation for a target Agent environment. FS-001 provides `generic-self-contained` and `microsoft-copilot`. Provider profiles do not define packaging.
+
+## Provider Sets
+
+A build may select one or more provider profiles. One realization is generated per selected provider from the same sources, packaging profile, resolved ADR commit, and App Builder implementation.
+
+## Provenance
+
+Each generated realization records the exact resolved ADR commit and the exact App Builder implementation commit. This supports later upgrade analysis without requiring either repository at runtime.
 
 ## Deterministic Build
 
-For identical source material, profile definitions, and builder version, a build should be deterministic.
+Identical sources, profiles, resolved ADR commit, and App Builder implementation commit shall produce deterministic output. ADR `main` is intentionally moving, so a later build after ADR advances has a different build input.
 
 ## Validation
 
-App Builder validation shall distinguish source-shape validity, profile existence, Ruleset/Dataset preservation, initialization metadata, and deterministic reference-fixture correspondence.
+Validation checks required source identity, profile existence and shape, source preservation, dual provenance, initialization separation, complete-realization preservation, multi-provider generation, and repeat-build determinism for the same resolved inputs.
 
-Semantic equivalence across arbitrary language models cannot be established by mechanical validation alone.
+## Reference Application
 
-## Initial Reference Application
-
-The initial reference fixture is a tiny task tracker derived from the one-file ADR proof-of-concept.
-
-Its purpose is to prove deterministic assembly. The task tracker is a fixture, not App Builder product semantics.
+The initial reference fixture is a tiny task tracker used to exercise realization assembly and preservation behavior, not to define App Builder business semantics.
 
 ## Design Boundary
 
-App Builder does not define ADR core semantics, a universal ADR application file format, a universal provider command language, or application-specific business workflows.
-
-Its product meaning is controlled construction of realizations from semantically distinct application source material.
+FS-001 does not define a universal ADR application format, migration engine, upgrade engine, provider API, plugin system, or semantic-diff framework.
