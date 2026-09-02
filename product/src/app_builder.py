@@ -1,70 +1,46 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
-import argparse
-import json
+import argparse, json, subprocess
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
-PROFILES = ROOT / "product" / "src" / "profiles"
-
-def load(path: Path):
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-def profile_path(profile_id: str) -> Path:
-    mapping = {
-        "generic-self-contained": PROFILES / "generic-self-contained.json",
-        "microsoft-copilot": PROFILES / "microsoft-copilot.json",
-    }
-    if profile_id not in mapping:
-        raise SystemExit(f"unknown provider profile: {profile_id}")
-    return mapping[profile_id]
-
-def build_one(application, ruleset, dataset, profile):
-    if profile.get("packaging") != "self-contained-json":
-        raise SystemExit(f"unsupported packaging: {profile.get('packaging')}")
-    return {
-        "adr_realization": {
-            "format": "adr-app-builder/self-contained-json",
-            "format_version": 1,
-            "authority": {
-                "generated_realization_is_normative": False,
-                "dataset_is_authoritative_for_committed_application_state": True,
-            },
-            "provider": {"profile": profile["id"], "name": profile["provider"]},
-            "application": application,
-            "initialization": profile["initialization"],
-            "ruleset": ruleset,
-            "dataset": dataset,
-        }
-    }
-
-def write_json(path: Path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-
+ROOT=Path(__file__).resolve().parents[2]; PROFILES=ROOT/"product"/"src"/"profiles"; DEFAULT_ADR_REPOSITORY="https://github.com/wiigelec/adr.git"
+def load(p): return json.loads(p.read_text(encoding="utf-8"))
+def obj(n,v):
+    if not isinstance(v,dict): raise SystemExit(f"{n} must be a JSON object")
+def string(n,v):
+    if not isinstance(v,str) or not v: raise SystemExit(f"{n} must be a non-empty string")
+def resolve_adr_main(repo):
+    p=subprocess.run(["git","ls-remote",repo,"refs/heads/main"],text=True,capture_output=True)
+    if p.returncode: raise SystemExit("unable to resolve ADR main: "+p.stderr.strip())
+    parts=p.stdout.strip().split();
+    if not parts: raise SystemExit("ADR main did not resolve")
+    return parts[0]
+def builder_commit():
+    dirty=subprocess.run(["git","status","--porcelain","--","product/src/app_builder.py"],cwd=ROOT,text=True,capture_output=True,check=True).stdout.strip()
+    if dirty: raise SystemExit("builder implementation has uncommitted changes; commit it before building")
+    return subprocess.run(["git","log","-1","--format=%H","--","product/src/app_builder.py"],cwd=ROOT,text=True,capture_output=True,check=True).stdout.strip()
+def profile(pid):
+    p=PROFILES/f"{pid}.json"
+    if not p.is_file(): raise SystemExit(f"unknown profile: {pid}")
+    return load(p)
+def validate_sources(app,rules,dataset,build):
+    for n,v in [("application",app),("ruleset",rules),("dataset",dataset),("build",build)]: obj(n,v)
+    string("application.id",app.get("id")); obj("application.initialization",app.get("initialization"))
+    ins=app["initialization"].get("instructions")
+    if not isinstance(ins,list) or not ins or not all(isinstance(x,str) and x for x in ins): raise SystemExit("application.initialization.instructions must be a non-empty string list")
+    obj("dataset.instance",dataset.get("instance")); string("dataset.instance.id",dataset["instance"].get("id")); string("build.packaging_profile",build.get("packaging_profile"))
+    ps=build.get("providers")
+    if not isinstance(ps,list) or not ps or not all(isinstance(x,str) and x for x in ps) or len(set(ps))!=len(ps): raise SystemExit("build.providers must be a non-empty unique string list")
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--application", required=True, type=Path)
-    p.add_argument("--ruleset", required=True, type=Path)
-    p.add_argument("--dataset", required=True, type=Path)
-    p.add_argument("--build", required=True, type=Path)
-    p.add_argument("--output-dir", required=True, type=Path)
-    args = p.parse_args()
-    application = load(args.application)
-    ruleset = load(args.ruleset)
-    dataset = load(args.dataset)
-    build = load(args.build)
-    if build.get("packaging_profile") != "self-contained-json":
-        raise SystemExit("FS-001 supports only packaging_profile=self-contained-json")
-    providers = build.get("providers")
-    if not isinstance(providers, list) or not providers:
-        raise SystemExit("build.providers must be a non-empty list")
-    for provider_id in providers:
-        profile = load(profile_path(provider_id))
-        artifact = build_one(application, ruleset, dataset, profile)
-        write_json(args.output_dir / f"{provider_id}.json", artifact)
-
-if __name__ == "__main__":
-    main()
+    ap=argparse.ArgumentParser();
+    for a in ["application","ruleset","dataset","build"]: ap.add_argument(f"--{a}",required=True,type=Path)
+    ap.add_argument("--output-dir",required=True,type=Path); ap.add_argument("--adr-repository",default=DEFAULT_ADR_REPOSITORY); args=ap.parse_args()
+    app,rules,dataset,build=[load(getattr(args,x)) for x in ["application","ruleset","dataset","build"]]; validate_sources(app,rules,dataset,build)
+    packaging=profile(build["packaging_profile"]); obj("packaging.preservation",packaging.get("preservation"))
+    if packaging.get("id")!=build["packaging_profile"] or packaging["preservation"].get("writeback")!="complete-realization" or packaging["preservation"].get("preserve_non_dataset_realization_material") is not True: raise SystemExit("invalid FS-001 packaging profile")
+    adr=resolve_adr_main(args.adr_repository); bc=builder_commit()
+    for pid in build["providers"]:
+        provider=profile(pid); obj("provider.bootstrap",provider.get("bootstrap"))
+        if provider.get("id")!=pid or provider["bootstrap"].get("mode")!="initialize" or not provider["bootstrap"].get("instructions"): raise SystemExit(f"invalid provider profile: {pid}")
+        artifact={"adr_realization":{"format":packaging["format"],"format_version":packaging["format_version"],"provenance":{"adr_commit":adr,"app_builder_commit":bc},"authority":{"generated_realization_is_normative":False,"dataset_is_authoritative_for_committed_application_state":True},"provider":{"profile":pid,"name":provider["provider"]},"application":app,"initialization":{"application":app["initialization"],"provider":provider["bootstrap"]},"ruleset":rules,"dataset":dataset,"preservation":packaging["preservation"]}}
+        out=args.output_dir/f"{pid}.json"; out.parent.mkdir(parents=True,exist_ok=True); out.write_text(json.dumps(artifact,indent=2)+"\n",encoding="utf-8")
+if __name__=="__main__": main()

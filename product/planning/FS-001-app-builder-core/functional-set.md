@@ -1,21 +1,20 @@
 # FS-001 — ADR App Builder Core
 
 functional_set: FS-001
-design_revision: 3f0540213f1a8816854b9d264285bcb66932fb8c
-upstream_adr_fs003_commit: ef8d8bcdcf152364dd719038d82e90bb4c321b49
+design_revision: 6fc55280cb45624af50367481f1d429698424fc6
 
 ## Purpose
 
-FS-001 establishes the first executable ADR App Builder slice: canonical source separation, self-contained packaging, provider profiles, provider-set generation, deterministic build behavior, and reference-fixture validation.
+FS-001 establishes source separation, build-time ADR `main` resolution, dual provenance, self-contained packaging, provider adaptation, complete-realization preservation, deterministic generation, and reference-fixture validation.
 
 ## Functional Boundary
 
-FS-001 includes separate application, Ruleset, Dataset, and build-definition source inputs; self-contained JSON packaging; one or more provider profiles; deterministic generation; a generic provider profile; a Microsoft Copilot profile; and a task-tracker reference fixture.
+FS-001 includes application, Ruleset, Dataset, and build-definition inputs; application-owned initialization semantics; one explicit self-contained JSON packaging profile; generic and Microsoft Copilot provider profiles; one-or-more-provider generation; dual ADR/App Builder provenance; complete-realization writeback guidance; and deterministic validation.
 
 ## Exclusions
 
-FS-001 does not establish a universal ADR file format, managed shared-Ruleset packaging, provider APIs, automated upload, live model conformance testing, arbitrary schema migration, or application-specific workflow semantics beyond the fixture.
+FS-001 does not establish a universal ADR file format, migration or upgrade automation, provider APIs, automated upload, live model conformance testing, plugin architecture, or application-specific workflow semantics beyond the fixture.
 
-## Planning Result
+## Upstream ADR Model
 
-FS-001 is realized through this Functional Set, `plan.md`, the canonical normative specification, the reference builder, built-in profiles, and deterministic fixture validation.
+A new build resolves `wiigelec/adr` `main` at build time and records the exact resolved ADR commit. App Builder Design is not permanently pinned to one ADR candidate revision.

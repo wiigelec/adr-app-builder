@@ -1,0 +1,11 @@
+{
+  "profile_version": 1,
+  "id": "self-contained-json",
+  "format": "adr-app-builder/self-contained-json",
+  "format_version": 1,
+  "preservation": {
+    "dataset_component_is_mutable_under_ruleset": true,
+    "preserve_non_dataset_realization_material": true,
+    "writeback": "complete-realization"
+  }
+}
