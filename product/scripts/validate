@@ -1,60 +1,26 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
-import hashlib
-import json
-import subprocess
-import tempfile
+import hashlib,json,subprocess,tempfile
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "product" / "src" / "examples" / "task-tracker"
-BUILDER = ROOT / "product" / "src" / "app_builder.py"
-EXPECTED = ROOT / "product" / "validation" / "expected" / "task-tracker-copilot.json"
-
-def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-def run_build(outdir):
-    subprocess.run([
-        "python3", str(BUILDER),
-        "--application", str(BASE / "application.json"),
-        "--ruleset", str(BASE / "ruleset.json"),
-        "--dataset", str(BASE / "dataset.json"),
-        "--build", str(BASE / "build.json"),
-        "--output-dir", str(outdir),
-    ], cwd=ROOT, check=True)
-
+ROOT=Path(__file__).resolve().parents[2]; BASE=ROOT/"product"/"src"/"examples"/"task-tracker"; BUILDER=ROOT/"product"/"src"/"app_builder.py"; ADR="https://github.com/wiigelec/adr.git"; PROVIDERS=["generic-self-contained","microsoft-copilot"]
+def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+def adr_main(): return subprocess.run(["git","ls-remote",ADR,"refs/heads/main"],text=True,capture_output=True,check=True).stdout.strip().split()[0]
+def builder_commit(): return subprocess.run(["git","log","-1","--format=%H","--","product/src/app_builder.py"],cwd=ROOT,text=True,capture_output=True,check=True).stdout.strip()
+def run_build(out): subprocess.run(["python3",str(BUILDER),"--application",str(BASE/"application.json"),"--ruleset",str(BASE/"ruleset.json"),"--dataset",str(BASE/"dataset.json"),"--build",str(BASE/"build.json"),"--output-dir",str(out)],cwd=ROOT,check=True)
 def main():
-    ruleset_hash = sha(BASE / "ruleset.json")
-    dataset_hash = sha(BASE / "dataset.json")
-    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-        pa, pb = Path(a), Path(b)
-        run_build(pa)
-        run_build(pb)
-        out_a = pa / "microsoft-copilot.json"
-        out_b = pb / "microsoft-copilot.json"
-        if out_a.read_bytes() != EXPECTED.read_bytes():
-            raise SystemExit("FAIL: generated Copilot fixture differs from expected output")
-        if out_a.read_bytes() != out_b.read_bytes():
-            raise SystemExit("FAIL: repeated builds are not byte-identical")
-        if sha(BASE / "ruleset.json") != ruleset_hash:
-            raise SystemExit("FAIL: build mutated source Ruleset")
-        if sha(BASE / "dataset.json") != dataset_hash:
-            raise SystemExit("FAIL: build mutated source Dataset")
-        artifact = json.loads(out_a.read_text(encoding="utf-8"))["adr_realization"]
-        source_ruleset = json.loads((BASE / "ruleset.json").read_text(encoding="utf-8"))
-        source_dataset = json.loads((BASE / "dataset.json").read_text(encoding="utf-8"))
-        if artifact["ruleset"] != source_ruleset:
-            raise SystemExit("FAIL: generated Ruleset differs from source")
-        if artifact["dataset"] != source_dataset:
-            raise SystemExit("FAIL: generated Dataset differs from source")
-        if artifact["provider"]["profile"] != "microsoft-copilot":
-            raise SystemExit("FAIL: provider profile identity incorrect")
-        if artifact["initialization"].get("mode") != "initialize":
-            raise SystemExit("FAIL: initialization mode missing")
-    print("PASS: app-builder FS-001 generation is deterministic, source-preserving, and matches expected Copilot realization.")
-    return 0
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    src=[BASE/x for x in ["application.json","ruleset.json","dataset.json","build.json"]]; before={p:sha(p) for p in src}; adr=adr_main(); bc=builder_commit(); app=json.loads((BASE/"application.json").read_text()); rules=json.loads((BASE/"ruleset.json").read_text()); dataset=json.loads((BASE/"dataset.json").read_text())
+    with tempfile.TemporaryDirectory() as a,tempfile.TemporaryDirectory() as b:
+        pa,pb=Path(a),Path(b); run_build(pa); run_build(pb)
+        for pid in PROVIDERS:
+            aa,bb=pa/f"{pid}.json",pb/f"{pid}.json"
+            if not aa.is_file() or aa.read_bytes()!=bb.read_bytes(): raise SystemExit(f"FAIL: deterministic provider output {pid}")
+            r=json.loads(aa.read_text())["adr_realization"]
+            if r["provenance"]!={"adr_commit":adr,"app_builder_commit":bc}: raise SystemExit(f"FAIL: provenance {pid}")
+            if r["application"]!=app or r["ruleset"]!=rules or r["dataset"]!=dataset: raise SystemExit(f"FAIL: source fidelity {pid}")
+            if r["initialization"]["application"]!=app["initialization"] or r["initialization"]["provider"].get("mode")!="initialize": raise SystemExit(f"FAIL: initialization separation {pid}")
+            if r["preservation"].get("writeback")!="complete-realization" or r["preservation"].get("preserve_non_dataset_realization_material") is not True: raise SystemExit(f"FAIL: preservation {pid}")
+        if sorted(p.name for p in pa.glob("*.json"))!=sorted(f"{p}.json" for p in PROVIDERS): raise SystemExit("FAIL: provider set")
+    for p,d in before.items():
+        if sha(p)!=d: raise SystemExit(f"FAIL: source mutated {p.relative_to(ROOT)}")
+    print("PASS: FS-001 resolves ADR main, records dual provenance, generates both providers, preserves sources, separates initialization, carries complete-realization preservation, and is deterministic for resolved inputs.")
+if __name__=="__main__": main()
