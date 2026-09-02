@@ -5,7 +5,7 @@ design_revision: 6fc55280cb45624af50367481f1d429698424fc6
 
 ## Purpose
 
-FS-001 establishes source separation, build-time ADR `main` resolution, dual provenance, self-contained packaging, provider adaptation, complete-realization preservation, deterministic generation, and reference-fixture validation.
+FS-001 establishes source separation, build-time ADR `main` resolution and seed-spec consumption, dual provenance, self-contained packaging, provider adaptation, complete-realization preservation, deterministic generation, and reference-fixture validation.
 
 ## Functional Boundary
 
@@ -17,4 +17,4 @@ FS-001 does not establish a universal ADR file format, migration or upgrade auto
 
 ## Upstream ADR Model
 
-A new build resolves `wiigelec/adr` `main` at build time and records the exact resolved ADR commit. App Builder Design is not permanently pinned to one ADR candidate revision.
+A new build resolves `wiigelec/adr` `main` at build time, consumes the accepted ADR seed specs present at that exact revision, and records the exact resolved ADR commit. App Builder Design is not permanently pinned to one ADR candidate revision.

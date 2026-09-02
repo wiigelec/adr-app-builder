@@ -12,9 +12,9 @@ ADR App Builder is realization tooling for constructing deployable ADR-derived a
 
 ## Upstream ADR Boundary
 
-App Builder tracks the current `main` branch of `wiigelec/adr` when building a new application realization. Each build resolves ADR `main` to one exact commit before generation and records that commit in the generated realization.
+App Builder tracks the current `main` branch of `wiigelec/adr` when building a new application realization. Each build resolves ADR `main` to one exact commit, consumes and validates the accepted ADR seed-spec artifacts present under `product/src` at that exact commit, and records the resolved ADR commit in the generated realization.
 
-A generated realization also records the exact App Builder implementation commit that produced it. These commits are provenance and future-upgrade anchors, not runtime authorities.
+A generated realization also records the exact current App Builder repository commit used for the build. These commits are provenance and future-upgrade anchors, not runtime authorities. The consumed ADR seed specs are build inputs and need not be copied into the generated realization.
 
 ## Canonical Application Source Model
 
@@ -42,11 +42,11 @@ A build may select one or more provider profiles. One realization is generated p
 
 ## Provenance
 
-Each generated realization records the exact resolved ADR commit and the exact App Builder implementation commit. This supports later upgrade analysis without requiring either repository at runtime.
+Each generated realization records the exact resolved ADR commit and the exact current App Builder repository commit. The build also consumes the accepted ADR seed-spec artifacts from that resolved ADR revision. This supports later upgrade analysis without requiring either repository at runtime.
 
 ## Deterministic Build
 
-Identical sources, profiles, resolved ADR commit, and App Builder implementation commit shall produce deterministic output. ADR `main` is intentionally moving, so a later build after ADR advances has a different build input.
+Identical sources, profiles, resolved ADR commit and seed-spec contents, and App Builder repository commit shall produce deterministic output. ADR `main` is intentionally moving, so a later build after ADR advances has a different build input.
 
 ## Validation
 

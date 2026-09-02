@@ -10,13 +10,13 @@ The builder shall accept application definition, Ruleset source, Dataset source,
 
 **Classification: S**
 
-A new build shall resolve the configured ADR framework `main` branch to one exact commit before generation.
+A new build shall resolve the configured ADR framework `main` branch to one exact commit before generation and shall consume and validate the accepted `product/src/*.seed.json` artifacts present at that exact revision.
 
 ### FS-001-NR-003 — Dual Provenance
 
 **Classification: M**
 
-Each generated realization shall record the exact ADR commit resolved for the build and the exact App Builder implementation commit used to generate it.
+Each generated realization shall record the exact ADR commit resolved for the build and the exact current App Builder repository commit used to generate it.
 
 ### FS-001-NR-004 — Application Initialization Semantics
 
@@ -106,4 +106,4 @@ Mechanical validation shall verify that generation does not mutate source applic
 
 **Classification: M**
 
-Equivalent repeated builds using the same source documents, profiles, resolved ADR commit, and App Builder implementation commit shall produce byte-identical provider outputs.
+Equivalent repeated builds using the same source documents, profiles, resolved ADR commit and seed-spec contents, and App Builder repository commit shall produce byte-identical provider outputs.

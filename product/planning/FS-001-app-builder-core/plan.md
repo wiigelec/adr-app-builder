@@ -22,4 +22,4 @@ The task-tracker selects both providers and exercises identity, application-owne
 
 ## Validation
 
-Validation checks source/profile structure, dual provenance, both provider outputs, exact Ruleset/Dataset preservation, separated initialization, preservation contract presence, source immutability, and repeat-build determinism. A checked-in byte-exact expected artifact is not required because ADR `main` is a moving build input.
+Validation checks ADR seed-spec consumption, source/profile structure, dual provenance, both provider outputs, exact Ruleset/Dataset preservation, separated initialization, preservation contract presence, source immutability, and repeat-build determinism. A checked-in byte-exact expected artifact is not required because ADR `main` is a moving build input.
