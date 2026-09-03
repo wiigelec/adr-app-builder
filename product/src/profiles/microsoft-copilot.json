@@ -1,0 +1,17 @@
+{
+  "profile_version": 1,
+  "id": "microsoft-copilot",
+  "provider": "Microsoft Copilot",
+  "bootstrap": {
+    "mode": "initialize",
+    "instructions": [
+      "Initialize this self-contained ADR-derived application when the file is attached to a fresh Copilot chat.",
+      "Apply the embedded application-owned initialization semantics before ordinary reasoning.",
+      "Read the embedded Ruleset before interpreting application state.",
+      "Treat only the embedded Dataset as authoritative committed application state.",
+      "Do not treat chat memory or model working memory as committed state.",
+      "Initialization does not implicitly mutate Dataset state.",
+      "After an accepted Dataset mutation, preserve all non-Dataset realization material and return the complete updated realization rather than a Dataset-only fragment."
+    ]
+  }
+}

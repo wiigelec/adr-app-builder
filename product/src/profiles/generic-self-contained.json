@@ -1,0 +1,16 @@
+{
+  "profile_version": 1,
+  "id": "generic-self-contained",
+  "provider": "generic",
+  "bootstrap": {
+    "mode": "initialize",
+    "instructions": [
+      "Recognize this artifact as a self-contained ADR-derived application realization.",
+      "Apply the embedded application-owned initialization semantics before ordinary reasoning.",
+      "Read the Ruleset before interpreting application state.",
+      "Treat the Dataset as authoritative committed application state.",
+      "Initialization does not implicitly mutate Dataset state.",
+      "After an accepted Dataset mutation, preserve all non-Dataset realization material and return the complete updated realization."
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "task-tracker",
+  "name": "ADR One-File Task Tracker",
+  "version": "test-0.4",
+  "description": "Reference ADR App Builder fixture for self-contained provider realization.",
+  "initialization": {
+    "instructions": [
+      "Identify application task-tracker and the selected Dataset instance.",
+      "Summarize current Dataset state without changing it.",
+      "Offer the application interactions defined by the Ruleset."
+    ]
+  }
+}
