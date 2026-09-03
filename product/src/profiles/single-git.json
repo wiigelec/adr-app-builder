@@ -1,0 +1,8 @@
+{
+  "profile_version": 1,
+  "id": "single-git",
+  "package_type": "ruleset-dataset",
+  "storage": "git",
+  "topology": "single",
+  "format": "json"
+}

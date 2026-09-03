@@ -1,0 +1,8 @@
+{
+  "profile_version": 1,
+  "id": "single-file",
+  "package_type": "ruleset-dataset",
+  "storage": "file",
+  "topology": "single",
+  "format": "json"
+}
