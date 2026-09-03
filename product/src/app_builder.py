@@ -2,20 +2,16 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
 import subprocess
 import tempfile
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "product" / "src" / "profiles"
 DEFAULT_ADR_REPOSITORY = "https://github.com/wiigelec/adr.git"
-DEFAULT_ADR_API_REPOSITORY = "https://api.github.com/repos/wiigelec/adr"
 FS002_PROFILES = {"single-file", "split-files", "single-git", "split-git"}
 
 GIT_ENV = {
@@ -56,15 +52,6 @@ def resolve_adr_main(repository: str) -> str:
     if not parts:
         raise SystemExit("ADR main did not resolve")
     return parts[0]
-
-
-def http_json(url: str):
-    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "adr-app-builder"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        raise SystemExit(f"unable to consume ADR seed specs: {exc}")
 
 
 def consume_adr_seed_specs(repository: str, commit: str):
@@ -335,7 +322,6 @@ def main():
     parser.add_argument("--build", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--adr-repository", default=DEFAULT_ADR_REPOSITORY)
-    parser.add_argument("--adr-api-repository", default=DEFAULT_ADR_API_REPOSITORY)
     args = parser.parse_args()
 
     application = load(args.application)

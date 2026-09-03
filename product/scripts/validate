@@ -182,6 +182,8 @@ def validate_single_git(out: Path, rules, dataset):
         raise SystemExit("FAIL: single-git source fidelity")
     if git(repo, "remote"):
         raise SystemExit("FAIL: single-git remote configured")
+    if git(repo, "symbolic-ref", "--short", "HEAD") != "main":
+        raise SystemExit("FAIL: single-git canonical branch")
     expected_ref = {
         "profile": "single-git",
         "storage": "git",
@@ -216,6 +218,10 @@ def validate_split_git(out: Path, rules, dataset):
         raise SystemExit("FAIL: split-git source fidelity")
     if git(rules_repo, "remote") or git(dataset_repo, "remote"):
         raise SystemExit("FAIL: split-git remote configured")
+    if git(rules_repo, "symbolic-ref", "--short", "HEAD") != "main":
+        raise SystemExit("FAIL: split-git Ruleset canonical branch")
+    if git(dataset_repo, "symbolic-ref", "--short", "HEAD") != "main":
+        raise SystemExit("FAIL: split-git Dataset canonical branch")
     expected_ref = {
         "profile": "split-git",
         "storage": "git",
@@ -299,6 +305,39 @@ def validate_fs001(app, rules, dataset, adr, builder, adr_repository: Path):
                 raise SystemExit(f"FAIL: FS-001 preservation {pid}")
 
 
+def package_identity(profile: str, out: Path):
+    if profile == "single-file":
+        return (out / "package" / "package.json").read_bytes()
+    if profile == "split-files":
+        return (
+            (out / "package" / "ruleset.json").read_bytes(),
+            (out / "package" / "dataset.json").read_bytes(),
+        )
+    if profile == "single-git":
+        return git(out / "package" / "repository", "rev-parse", "HEAD")
+    if profile == "split-git":
+        return (
+            git(out / "package" / "ruleset", "rev-parse", "HEAD"),
+            git(out / "package" / "dataset", "rev-parse", "HEAD"),
+        )
+    raise SystemExit(f"FAIL: unknown profile identity {profile}")
+
+
+def validate_provider_selection_independence(profile: str, adr_repository: Path, configs: Path):
+    identities = []
+    for provider in PROVIDERS:
+        build_path = configs / f"{profile}-{provider}.json"
+        build_path.write_text(
+            json.dumps({"packaging_profile": profile, "providers": [provider]}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with tempfile.TemporaryDirectory() as out:
+            out_path = Path(out)
+            run_build(out_path, build_path, adr_repository)
+            identities.append(package_identity(profile, out_path))
+    if identities[0] != identities[1]:
+        raise SystemExit(f"FAIL: provider selection changed package {profile}")
+
 def validate_fs002(rules, dataset, adr_repository: Path):
     validators = {
         "single-file": validate_single_file,
@@ -317,6 +356,7 @@ def validate_fs002(rules, dataset, adr_repository: Path):
                 run_build(pb, build_path, adr_repository)
                 compare_initial(profile, pa, pb)
                 validators[profile](pa, rules, dataset)
+            validate_provider_selection_independence(profile, adr_repository, configs)
 
 
 def main():
