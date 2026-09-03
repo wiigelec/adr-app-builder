@@ -1,0 +1,8 @@
+{
+  "profile_version": 1,
+  "id": "split-files",
+  "package_type": "ruleset-dataset",
+  "storage": "file",
+  "topology": "split",
+  "format": "json"
+}

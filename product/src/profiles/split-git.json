@@ -1,0 +1,8 @@
+{
+  "profile_version": 1,
+  "id": "split-git",
+  "package_type": "ruleset-dataset",
+  "storage": "git",
+  "topology": "split",
+  "format": "json"
+}

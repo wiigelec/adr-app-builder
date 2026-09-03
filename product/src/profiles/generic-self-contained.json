@@ -12,5 +12,17 @@
       "Initialization does not implicitly mutate Dataset state.",
       "After an accepted Dataset mutation, preserve all non-Dataset realization material and return the complete updated realization."
     ]
+  },
+  "package_bootstrap": {
+    "mode": "initialize",
+    "instructions": [
+      "Recognize this artifact as a provider adaptation for an ADR-derived application.",
+      "Resolve and consume the referenced Ruleset/Dataset package before ordinary reasoning.",
+      "Apply the application-owned initialization semantics before ordinary reasoning.",
+      "Read the packaged Ruleset before interpreting packaged Dataset state.",
+      "Treat only the packaged Dataset as authoritative committed application state.",
+      "Initialization does not implicitly mutate Dataset state.",
+      "Persist accepted Dataset mutations according to the selected package topology without implicitly modifying Ruleset material."
+    ]
   }
 }
