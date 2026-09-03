@@ -95,7 +95,7 @@ def git(repo: Path, *args: str, env_extra=None):
         capture_output=True,
         check=True,
         env=env,
-    ).stdout.strip()
+    ).stdout.rstrip("\r\n")
 
 
 def repo_files(repo: Path):
