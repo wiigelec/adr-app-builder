@@ -16,7 +16,7 @@ Every FS-002 package shall preserve Ruleset and Dataset as independently identif
 
 **Classification: S**
 
-Provider bootstrap or presentation adaptation shall not alter the selected Ruleset/Dataset package topology, merge Ruleset and Dataset semantics, or inject provider-owned meaning into either component.
+Provider bootstrap or presentation adaptation shall not alter the selected Ruleset/Dataset package topology, merge Ruleset and Dataset semantics, inject provider-owned meaning into either component, or create an independent competing mutable Dataset copy.
 
 ### FS-002-NR-004 — Packaging Profile Set
 
@@ -40,7 +40,7 @@ The `single-file` profile shall generate one physical JSON package containing se
 
 **Classification: M**
 
-Mechanical validation shall verify that the `single-file` package's `ruleset` value equals the source Ruleset object and its `dataset` value equals the source Dataset object.
+Mechanical validation shall verify that parsing the `single-file` package's `ruleset` value yields the same JSON value as the parsed source Ruleset and that parsing its `dataset` value yields the same JSON value as the parsed source Dataset.
 
 ### FS-002-NR-008 — Single-File Dataset Mutation Preservation
 
@@ -58,7 +58,7 @@ The `split-files` profile shall generate exactly two package files named `rulese
 
 **Classification: M**
 
-Mechanical validation shall verify that `ruleset.json` preserves the source Ruleset and `dataset.json` preserves the source Dataset apart from deterministic JSON serialization.
+Mechanical validation shall verify that parsing `ruleset.json` yields the same JSON value as the parsed source Ruleset and parsing `dataset.json` yields the same JSON value as the parsed source Dataset.
 
 ### FS-002-NR-011 — Split-Files Dataset Mutation Isolation
 
@@ -112,13 +112,13 @@ Mechanical validation shall verify that Git-backed package generation canonicali
 
 **Classification: M**
 
-Mechanical validation shall verify that all four packaging profiles preserve the same source Ruleset meaning and that Dataset-only mutation does not alter Ruleset material.
+Mechanical validation shall verify that, for all four packaging profiles, parsing generated Ruleset JSON yields the same JSON value as the parsed source Ruleset and that Dataset-only mutation does not alter the generated Ruleset value.
 
 ### FS-002-NR-020 — Dataset Fidelity Across Topologies
 
 **Classification: M**
 
-Mechanical validation shall verify that all four packaging profiles preserve the same source Dataset meaning before governed mutation.
+Mechanical validation shall verify that, for all four packaging profiles, parsing generated Dataset JSON before governed mutation yields the same JSON value as the parsed source Dataset.
 
 ### FS-002-NR-021 — Source Immutability
 
@@ -149,3 +149,21 @@ Governed runtime Dataset mutations and their resulting Git commits are applicati
 **Classification: S**
 
 FS-002 shall preserve independent Ruleset/Dataset upgradeability but shall not define application-specific migration semantics, a migration engine, an upgrade engine, or a universal Ruleset or Dataset versioning scheme.
+
+### FS-002-NR-026 — Shared Package Across Providers
+
+**Classification: S**
+
+A build shall create one Ruleset/Dataset package for the selected packaging profile. When multiple provider profiles are selected, their provider realizations shall consume or reference that same package rather than creating independent mutable Ruleset/Dataset package copies.
+
+### FS-002-NR-027 — Shared Package Provider Validation
+
+**Classification: M**
+
+Mechanical validation shall verify that multi-provider generation preserves one shared Ruleset/Dataset package instance and does not create provider-specific competing Dataset copies.
+
+### FS-002-NR-028 — Git Storage Provenance
+
+**Classification: S**
+
+For Git-backed FS-002 packages, Git commit identity shall serve as storage-level package provenance and shall not replace application-semantic Ruleset or Dataset identity.
