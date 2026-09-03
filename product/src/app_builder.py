@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -66,33 +67,54 @@ def http_json(url: str):
         raise SystemExit(f"unable to consume ADR seed specs: {exc}")
 
 
-def consume_adr_seed_specs(api_repository: str, commit: str):
-    ref = urllib.parse.quote(commit, safe="")
-    listing = http_json(f"{api_repository}/contents/product/src?ref={ref}")
-    if not isinstance(listing, list):
-        raise SystemExit("ADR product/src listing is not a directory")
-    seeds = []
-    for item in sorted(listing, key=lambda value: value.get("name", "")):
-        name = item.get("name")
-        if not isinstance(name, str) or not name.endswith(".seed.json"):
-            continue
-        path = item.get("path")
-        if not isinstance(path, str):
-            raise SystemExit("ADR seed entry missing path")
-        content = http_json(f"{api_repository}/contents/{path}?ref={ref}")
-        if content.get("encoding") != "base64":
-            raise SystemExit(f"ADR seed {path} is not base64 encoded")
-        raw = base64.b64decode(content["content"])
-        try:
-            parsed = json.loads(raw.decode("utf-8"))
-        except Exception as exc:
-            raise SystemExit(f"ADR seed {path} is invalid JSON: {exc}")
-        require_object(f"ADR seed {path}", parsed)
-        seeds.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest()})
-    if not seeds:
-        raise SystemExit("resolved ADR revision contains no accepted seed specs")
-    return seeds
-
+def consume_adr_seed_specs(repository: str, commit: str):
+    """Consume accepted ADR seed specs from the exact resolved Git revision."""
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "adr"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, text=True, capture_output=True, check=True)
+        fetch = subprocess.run(
+            ["git", "fetch", "-q", "--depth=1", repository, commit],
+            cwd=repo,
+            text=True,
+            capture_output=True,
+        )
+        if fetch.returncode != 0:
+            raise SystemExit("unable to consume ADR seed specs: " + fetch.stderr.strip())
+        fetched = subprocess.run(
+            ["git", "rev-parse", "FETCH_HEAD"],
+            cwd=repo,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.strip()
+        if fetched != commit:
+            raise SystemExit(f"ADR seed fetch mismatch: expected {commit}, observed {fetched}")
+        listing = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", "FETCH_HEAD", "--", "product/src"],
+            cwd=repo,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.splitlines()
+        paths = sorted(path for path in listing if path.endswith(".seed.json"))
+        if not paths:
+            raise SystemExit("resolved ADR revision contains no accepted seed specs")
+        seeds = []
+        for path in paths:
+            raw = subprocess.run(
+                ["git", "show", f"FETCH_HEAD:{path}"],
+                cwd=repo,
+                capture_output=True,
+                check=True,
+            ).stdout
+            try:
+                parsed = json.loads(raw.decode("utf-8"))
+            except Exception as exc:
+                raise SystemExit(f"ADR seed {path} is invalid JSON: {exc}")
+            require_object(f"ADR seed {path}", parsed)
+            seeds.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest()})
+        return seeds
 
 def app_builder_commit() -> str:
     dirty = subprocess.run(
@@ -324,7 +346,7 @@ def main():
 
     packaging = profile(build["packaging_profile"])
     adr_commit = resolve_adr_main(args.adr_repository)
-    consume_adr_seed_specs(args.adr_api_repository, adr_commit)
+    consume_adr_seed_specs(args.adr_repository, adr_commit)
     builder_commit = app_builder_commit()
 
     if args.output_dir.exists() and any(args.output_dir.iterdir()):

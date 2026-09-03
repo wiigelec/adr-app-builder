@@ -48,7 +48,7 @@ def app_builder_head():
     ).stdout.strip()
 
 
-def run_build(out: Path, build_path: Path):
+def run_build(out: Path, build_path: Path, adr_repository: Path):
     subprocess.run(
         [
             "python3",
@@ -63,6 +63,8 @@ def run_build(out: Path, build_path: Path):
             str(build_path),
             "--output-dir",
             str(out),
+            "--adr-repository",
+            str(adr_repository),
         ],
         cwd=ROOT,
         check=True,
@@ -270,11 +272,11 @@ def compare_initial(profile: str, a: Path, b: Path):
             raise SystemExit(f"FAIL: FS-002 deterministic provider adaptation {profile}/{pid}")
 
 
-def validate_fs001(app, rules, dataset, adr, builder):
+def validate_fs001(app, rules, dataset, adr, builder, adr_repository: Path):
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         pa, pb = Path(a), Path(b)
-        run_build(pa, BASE / "build.json")
-        run_build(pb, BASE / "build.json")
+        run_build(pa, BASE / "build.json", adr_repository)
+        run_build(pb, BASE / "build.json", adr_repository)
         for pid in PROVIDERS:
             aa, bb = pa / f"{pid}.json", pb / f"{pid}.json"
             if not aa.is_file() or aa.read_bytes() != bb.read_bytes():
@@ -297,7 +299,7 @@ def validate_fs001(app, rules, dataset, adr, builder):
                 raise SystemExit(f"FAIL: FS-001 preservation {pid}")
 
 
-def validate_fs002(rules, dataset):
+def validate_fs002(rules, dataset, adr_repository: Path):
     validators = {
         "single-file": validate_single_file,
         "split-files": validate_split_files,
@@ -311,8 +313,8 @@ def validate_fs002(rules, dataset):
             write_build(build_path, profile)
             with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
                 pa, pb = Path(a), Path(b)
-                run_build(pa, build_path)
-                run_build(pb, build_path)
+                run_build(pa, build_path, adr_repository)
+                run_build(pb, build_path, adr_repository)
                 compare_initial(profile, pa, pb)
                 validators[profile](pa, rules, dataset)
 
@@ -330,14 +332,27 @@ def main():
 
     src = [BASE / x for x in ["application.json", "ruleset.json", "dataset.json", "build.json"]]
     before = {p: sha(p) for p in src}
-    adr = adr_main()
     builder = app_builder_head()
     app = read_json(BASE / "application.json")
     rules = read_json(BASE / "ruleset.json")
     dataset = read_json(BASE / "dataset.json")
 
-    validate_fs001(app, rules, dataset, adr, builder)
-    validate_fs002(rules, dataset)
+    with tempfile.TemporaryDirectory() as adr_cache_tmp:
+        adr_repository = Path(adr_cache_tmp) / "adr"
+        subprocess.run(
+            ["git", "clone", "-q", "--depth=1", "--branch", "main", ADR, str(adr_repository)],
+            cwd=ROOT,
+            check=True,
+        )
+        adr = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=adr_repository,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.strip()
+        validate_fs001(app, rules, dataset, adr, builder, adr_repository)
+        validate_fs002(rules, dataset, adr_repository)
 
     for p, digest in before.items():
         if sha(p) != digest:
