@@ -22,7 +22,7 @@ App Builder consumes semantically distinct application definition, Ruleset, Data
 
 ## Initialization
 
-Application-owned initialization semantics and provider bootstrap adaptation are distinct. Provider adaptation may add environment-specific guidance but shall not replace, weaken, or reinterpret application-owned initialization, Ruleset, Dataset, instance, authority, or transition meaning.
+Application-owned initialization semantics and provider bootstrap adaptation are distinct. Application-owned initialization remains represented once under the application definition; provider bootstrap remains separate realization metadata. Provider adaptation may add environment-specific guidance but shall not replace, weaken, duplicate, or reinterpret application-owned initialization, Ruleset, Dataset, instance, authority, or transition meaning.
 
 Initialization shall not implicitly mutate Dataset state. Explicit initialization-associated transitions remain application-owned and Ruleset-governed.
 

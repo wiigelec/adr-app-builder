@@ -22,7 +22,7 @@ Each generated realization shall record the exact ADR commit resolved for the bu
 
 **Classification: S**
 
-Application-owned initialization semantics shall remain distinguishable from provider-specific bootstrap adaptation.
+Application-owned initialization semantics shall remain represented once under the application definition and shall remain distinguishable from provider-specific bootstrap adaptation.
 
 ### FS-001-NR-005 — Packaging Profile Selection
 

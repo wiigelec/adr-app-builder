@@ -38,8 +38,12 @@ def main():
                 raise SystemExit(f"FAIL: provenance {pid}")
             if r["application"] != app or r["ruleset"] != rules or r["dataset"] != dataset:
                 raise SystemExit(f"FAIL: source fidelity {pid}")
-            if r["initialization"]["application"] != app["initialization"] or r["initialization"]["provider"].get("mode") != "initialize":
-                raise SystemExit(f"FAIL: initialization separation {pid}")
+            if r["application"].get("initialization") != app["initialization"]:
+                raise SystemExit(f"FAIL: application initialization fidelity {pid}")
+            if "application" in r.get("initialization", {}):
+                raise SystemExit(f"FAIL: duplicated application initialization {pid}")
+            if r["initialization"]["provider"].get("mode") != "initialize":
+                raise SystemExit(f"FAIL: provider bootstrap {pid}")
             if r["preservation"].get("writeback") != "complete-realization" or r["preservation"].get("preserve_non_dataset_realization_material") is not True:
                 raise SystemExit(f"FAIL: preservation {pid}")
         if sorted(p.name for p in pa.glob("*.json")) != sorted(f"{p}.json" for p in PROVIDERS):

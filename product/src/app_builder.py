@@ -139,7 +139,7 @@ def main():
                 },
                 "provider": {"profile": provider_id, "name": provider["provider"]},
                 "application": application,
-                "initialization": {"application": application["initialization"], "provider": provider["bootstrap"]},
+                "initialization": {"provider": provider["bootstrap"]},
                 "ruleset": ruleset,
                 "dataset": dataset,
                 "preservation": packaging["preservation"]
