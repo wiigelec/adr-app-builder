@@ -22,7 +22,7 @@ Repository-wide Validation shall delegate framework mechanical Validation to `re
 
 **Classification: B**
 
-When `product/scripts/validate` exists, repository-wide Validation shall require it to be executable, execute it after successful framework Validation, and fail when product Validation fails; absence of that product entry point shall not itself fail repository-wide Validation.
+When the maintained `product/` ownership domain is present, repository-wide Validation shall require executable `product/scripts/validate`, execute it after successful framework Validation, and fail when product Validation is absent or fails. A product with no current mechanical obligations shall use its canonical empty-manifest Validation state rather than omit product Validation.
 
 ### FS-004-NR-005 — CI delegation
 
@@ -71,3 +71,33 @@ Repository-root operational composition shall not become a source of framework o
 **Classification: S**
 
 FS-004 shall not require imported supplier ancestry, Git grafts, replace refs, bundles, hidden remotes, provenance databases, lineage systems, or generalized plugin machinery merely to preserve framework portability.
+
+### FS-004-NR-013 — Canonical Product Validation Entry Point
+
+**Classification: M**
+
+When maintained `product/` exists, `product/scripts/validate` shall be executable and shall remain a narrow launcher that delegates product Validation execution to `product/validation/validate_product.py` while forwarding command arguments unchanged.
+
+### FS-004-NR-014 — Product Requirement Evaluation Manifest Integrity
+
+**Classification: M**
+
+When maintained `product/` exists, `product/validation/requirement-evaluation.json` shall be a well-formed versioned Requirement Evaluation Manifest whose bindings reference existing active product normative requirements; every active product requirement classified `M` or `B` shall have exactly one binding to one or more unique validation tasks, while active `S` requirements and inactive requirements shall not have mechanical bindings.
+
+### FS-004-NR-015 — Product Validation Task Resolution Interface
+
+**Classification: M**
+
+The canonical product Validation entry point shall provide a task-resolution interface that can enumerate available product validation task identities and execute one named task; every task referenced by the product Requirement Evaluation Manifest shall resolve through that interface, and unknown task identities shall fail.
+
+### FS-004-NR-016 — Product Validation Gate
+
+**Classification: M**
+
+Invoking canonical product Validation without selecting a task shall execute the distinct validation tasks required by the active product Requirement Evaluation Manifest and shall fail when any required product validation task fails; an empty valid manifest shall succeed without inventing a product predicate.
+
+### FS-004-NR-017 — Product Predicate Ownership
+
+**Classification: S**
+
+Framework Validation may enforce product Validation structure, manifest integrity, classification coverage, and task identity resolution, but shall not own or execute product-specific normative predicates merely to perform those generic framework checks.

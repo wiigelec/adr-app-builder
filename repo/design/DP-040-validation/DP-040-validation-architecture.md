@@ -69,4 +69,17 @@ The repository-root Validation entry point shall run required framework Validati
 
 CI should delegate its mechanical gate to the repository-root Validation entry point when that composition surface exists, rather than independently selecting domain validators or reproducing their checks.
 
+## Product Validation Contract
+
+A repository prepared for product lifecycle work has a canonical product Validation entry point and a product-owned Validation implementation domain as defined by the repository ownership architecture.
+
+The product entry point delegates execution into product-owned Validation implementation. Substantive product mechanical predicates, requirement-task dispatch, and product validation fixtures remain under the product Validation ownership surface rather than accumulating in the entry point or repository-root composition layer.
+
+The product Requirement Evaluation Manifest is the durable traceability boundary between mechanically evaluated product normative requirements and their product validation tasks. Product Validation consumes those bindings to determine the mechanically required product checks.
+
+Framework Validation shall evaluate the reliably mechanically decidable generic properties of that contract, including required product Validation surfaces, manifest structural validity, mechanically classified requirement coverage, and whether referenced task identities resolve within the product Validation mechanism. Framework Validation does not thereby execute or own the product-specific normative predicate represented by a task; the canonical product Validation entry point remains responsible for product mechanical evaluation.
+
+A product with no applicable mechanically evaluated normative requirements still retains the canonical product Validation substrate. Its empty valid manifest represents the absence of current product mechanical obligations rather than the absence of product Validation architecture.
+
+
 For an installed framework snapshot identified by its framework source record, framework Validation may omit checks whose subject is framework-development Planning history that is intentionally absent from that snapshot. Remaining installed framework normative state remains mechanically evaluated from the installed normative specifications, requirement-evaluation bindings, and applicable framework artifacts.

@@ -305,6 +305,42 @@
         "manifest-integrity",
         "framework-regression"
       ]
+    },
+    {
+      "requirement": "FS-003-NR-013",
+      "tasks": [
+        "repository-structure",
+        "framework-regression"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-013",
+      "tasks": [
+        "validation-entrypoint",
+        "framework-regression"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-014",
+      "tasks": [
+        "manifest-integrity",
+        "framework-regression"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-015",
+      "tasks": [
+        "manifest-integrity",
+        "validation-entrypoint",
+        "framework-regression"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-016",
+      "tasks": [
+        "validation-gate",
+        "framework-regression"
+      ]
     }
   ]
 }

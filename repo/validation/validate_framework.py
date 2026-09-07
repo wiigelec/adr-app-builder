@@ -19,6 +19,17 @@ MANIFEST = ROOT / "repo" / "validation" / "requirement-evaluation.json"
 FRAMEWORK_SOURCE_RECORD = ROOT / "repo" / "validation" / "framework-source.json"
 ENTRYPOINT = ROOT / "repo" / "scripts" / "validate"
 ROOT_ENTRYPOINT = ROOT / "scripts" / "validate"
+PRODUCT_ROOT = ROOT / "product"
+PRODUCT_SPECS_ROOT = PRODUCT_ROOT / "specs"
+PRODUCT_ENTRYPOINT = PRODUCT_ROOT / "scripts" / "validate"
+PRODUCT_VALIDATION_ROOT = PRODUCT_ROOT / "validation"
+PRODUCT_MANIFEST = PRODUCT_VALIDATION_ROOT / "requirement-evaluation.json"
+PRODUCT_VALIDATOR = PRODUCT_VALIDATION_ROOT / "validate_product.py"
+CANONICAL_PRODUCT_ENTRYPOINT = """#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+exec python3 "$repo_root/product/validation/validate_product.py" "$@"
+"""
 README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
 OLD_WORKFLOW = ROOT / ".github" / "workflows" / "fs0-conformance.yml"
@@ -337,6 +348,103 @@ def validate_manifest_data(
         fail(f"Validation tasks without current normative justification: {unjustified}")
 
 
+PRODUCT_CLASS_RE = re.compile(r"^(?:\*\*)?Classification: ([MSB])(?:\*\*)?$")
+PRODUCT_STATE_RE = re.compile(r"^\*\*State: ([^*\n]+)\*\*$")
+
+
+def collect_product_requirement_state(
+    specs_root: Path = PRODUCT_SPECS_ROOT,
+) -> tuple[dict[str, str], set[str]]:
+    if not specs_root.is_dir():
+        fail("product/specs must exist")
+    requirements: dict[str, str] = {}
+    inactive: set[str] = set()
+    for spec_path in sorted(specs_root.glob("FS-*.md")):
+        text = read(spec_path)
+        headings = list(REQ_HEADING_RE.finditer(text))
+        for index, match in enumerate(headings):
+            req = match.group(1)
+            if req in requirements:
+                fail(f"duplicate product normative requirement identity: {req}")
+            end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+            block = text[match.end():end]
+            classes = [m.group(1) for line in block.splitlines() if (m := PRODUCT_CLASS_RE.match(line))]
+            if len(classes) != 1:
+                fail(f"product requirement {req} must have exactly one Classification")
+            requirements[req] = classes[0]
+            states = [m.group(1) for line in block.splitlines() if (m := PRODUCT_STATE_RE.match(line))]
+            if len(states) > 1:
+                fail(f"product requirement {req} has multiple State declarations")
+            if states and states[0] != "Inactive":
+                fail(f"product requirement {req} State must be Inactive when explicitly present")
+            if states:
+                inactive.add(req)
+    return requirements, inactive
+
+
+def validate_product_entrypoint_text(text: str) -> None:
+    if text != CANONICAL_PRODUCT_ENTRYPOINT:
+        fail(
+            "product/scripts/validate must be the canonical thin launcher only; "
+            "substantive product Validation belongs under product/validation/"
+        )
+
+
+def product_task_names(entrypoint: Path = PRODUCT_ENTRYPOINT) -> tuple[str, ...]:
+    cp = subprocess.run(
+        [str(entrypoint), "--list-tasks"],
+        cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    if cp.returncode != 0:
+        fail(f"product Validation task enumeration failed: {cp.stderr.strip() or cp.stdout.strip()}")
+    tasks = tuple(line for line in cp.stdout.splitlines() if line)
+    if len(tasks) != len(set(tasks)):
+        fail("product Validation task enumeration contains duplicates")
+    return tasks
+
+
+def validate_product_manifest_contract(
+    requirements: dict[str, str],
+    inactive: set[str],
+    data: dict,
+    tasks: tuple[str, ...],
+) -> None:
+    required = {
+        req for req, classification in requirements.items()
+        if classification in {"M", "B"} and req not in inactive
+    }
+    forbidden = {
+        req for req, classification in requirements.items()
+        if classification == "S" or req in inactive
+    }
+    seen: set[str] = set()
+    for binding in data["bindings"]:
+        if not isinstance(binding, dict):
+            fail("product manifest binding must be an object")
+        req = binding.get("requirement")
+        bound_tasks = binding.get("tasks")
+        if req not in requirements:
+            fail(f"product manifest references unknown requirement: {req}")
+        if req in forbidden:
+            fail(f"product manifest references requirement without active mechanical evaluation: {req}")
+        if req in seen:
+            fail(f"duplicate product manifest binding for requirement: {req}")
+        seen.add(req)
+        if (
+            not isinstance(bound_tasks, list)
+            or not bound_tasks
+            or len(bound_tasks) != len(set(bound_tasks))
+            or not all(isinstance(task, str) and task for task in bound_tasks)
+        ):
+            fail(f"invalid product task list for {req}")
+        unknown = sorted(set(bound_tasks) - set(tasks))
+        if unknown:
+            fail(f"product manifest references unknown Validation tasks: {unknown}")
+    missing = sorted(required - seen)
+    if missing:
+        fail(f"active mechanically evaluated product requirements without manifest bindings: {missing}")
+
+
 def task_design_corpus() -> None:
     if not DESIGN.is_dir():
         fail("repo/design must exist")
@@ -395,7 +503,18 @@ def validate_structural_paths(paths: list[str]) -> None:
 
 
 def task_repository_structure() -> None:
-    validate_structural_paths(candidate_paths())
+    paths = candidate_paths()
+    validate_structural_paths(paths)
+    product_paths = [
+        Path(raw).parts for raw in paths
+        if Path(raw).parts and Path(raw).parts[0] == "product"
+    ]
+    if product_paths:
+        present = {parts[1] for parts in product_paths if len(parts) >= 2}
+        required = {"design", "specs", "scripts", "validation"}
+        missing = sorted(required - present)
+        if missing:
+            fail(f"product/ is missing required baseline roles: {missing}")
 
 
 def task_planning_structure() -> None:
@@ -421,6 +540,15 @@ def task_manifest_integrity() -> None:
         forbidden_bindings=inactive,
     )
 
+    if PRODUCT_ROOT.is_dir():
+        product_requirements, product_inactive = collect_product_requirement_state()
+        validate_product_manifest_contract(
+            product_requirements,
+            product_inactive,
+            load_manifest(PRODUCT_MANIFEST),
+            product_task_names(),
+        )
+
 
 def task_validation_entrypoint() -> None:
     text = read(ENTRYPOINT)
@@ -443,8 +571,23 @@ def task_validation_entrypoint() -> None:
         fail("scripts/validate must be executable")
     if 'ROOT / "repo" / "scripts" / "validate"' not in root_text:
         fail("scripts/validate must delegate to repo/scripts/validate")
-    if 'ROOT / "product" / "scripts" / "validate"' not in root_text:
-        fail("scripts/validate must compose product/scripts/validate when present")
+    if 'ROOT / "product"' not in root_text or '"scripts" / "validate"' not in root_text:
+        fail("scripts/validate must compose required product/scripts/validate when product/ exists")
+
+    if PRODUCT_ROOT.is_dir():
+        product_text = read(PRODUCT_ENTRYPOINT)
+        if not os.access(PRODUCT_ENTRYPOINT, os.X_OK):
+            fail("product/scripts/validate must be executable")
+        validate_product_entrypoint_text(product_text)
+        if not PRODUCT_VALIDATOR.is_file():
+            fail("product/validation/validate_product.py must exist")
+        product_task_names()
+        invalid = subprocess.run(
+            [str(PRODUCT_ENTRYPOINT), "--task", "__invalid_required_task__"],
+            cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        if invalid.returncode == 0:
+            fail("canonical product Validation did not fail for an unknown task")
 
 
 def task_docs_alignment() -> None:
@@ -830,8 +973,8 @@ def task_framework_regression() -> None:
         framework.chmod(0o755)
 
         completed = subprocess.run([str(scripts_dir / "validate")], cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if completed.returncode != 0:
-            fail("root Validation must pass when framework passes and product Validation is absent")
+        if completed.returncode == 0:
+            fail("root Validation must fail when product/ exists but canonical product Validation is absent")
 
         product = product_scripts / "validate"
         product.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -851,6 +994,96 @@ def task_framework_regression() -> None:
         completed = subprocess.run([str(scripts_dir / "validate")], cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if completed.returncode != 0:
             fail("root Validation must pass when framework and product Validation pass")
+
+    # Product requirement state uses the repository's canonical explicit
+    # Inactive form; absence of State means active.
+    with tempfile.TemporaryDirectory() as tmp:
+        specs = Path(tmp)
+        spec = specs / "FS-998-state-fixture.md"
+        spec.write_text(
+            "# FS-998 — State Fixture\n\n"
+            "### FS-998-NR-001 — Inactive mechanical\n\n"
+            "**Classification: M**\n\n"
+            "**State: Inactive**\n\n"
+            "Fixture.\n\n"
+            "### FS-998-NR-002 — Inactive both\n\n"
+            "**Classification: B**\n\n"
+            "**State: Inactive**\n\n"
+            "Fixture.\n\n"
+            "### FS-998-NR-003 — Active semantic\n\n"
+            "**Classification: S**\n\n"
+            "Fixture.\n",
+            encoding="utf-8",
+        )
+        product_requirements, product_inactive = collect_product_requirement_state(specs)
+        if product_inactive != {"FS-998-NR-001", "FS-998-NR-002"}:
+            fail("canonical product Inactive-state regression failed")
+        validate_product_manifest_contract(
+            product_requirements,
+            product_inactive,
+            {"version": 1, "bindings": []},
+            (),
+        )
+
+        spec.write_text(
+            spec.read_text(encoding="utf-8").replace(
+                "**State: Inactive**",
+                "**State: Active**",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        expect_failure(
+            lambda: collect_product_requirement_state(specs),
+            "State must be Inactive",
+        )
+
+    # Product Validation entrypoint must remain composition only.
+    validate_product_entrypoint_text(CANONICAL_PRODUCT_ENTRYPOINT)
+    expect_failure(
+        lambda: validate_product_entrypoint_text(CANONICAL_PRODUCT_ENTRYPOINT + "\necho substantive-product-check\n"),
+        "canonical thin launcher only",
+    )
+
+    # Generic product Validation contract regression.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        specs = root / "specs"
+        specs.mkdir()
+        (specs / "FS-998-fixture.md").write_text(
+            "# FS-998 — Fixture\n\n"
+            "### FS-998-NR-001 — Mechanical\n\nClassification: M\n\nMechanical.\n\n"
+            "### FS-998-NR-002 — Semantic\n\nClassification: S\n\nSemantic.\n",
+            encoding="utf-8",
+        )
+        reqs, inactive = collect_product_requirement_state(specs)
+        valid = {
+            "version": 1,
+            "bindings": [{"requirement": "FS-998-NR-001", "tasks": ["check"]}],
+        }
+        validate_product_manifest_contract(reqs, inactive, valid, ("check",))
+        expect_failure(
+            lambda: validate_product_manifest_contract(
+                reqs, inactive, {"version": 1, "bindings": []}, ("check",)
+            ),
+            "without manifest bindings",
+        )
+        expect_failure(
+            lambda: validate_product_manifest_contract(
+                reqs, inactive,
+                {"version": 1, "bindings": [{"requirement": "FS-998-NR-002", "tasks": ["check"]}]},
+                ("check",),
+            ),
+            "without active mechanical evaluation",
+        )
+        expect_failure(
+            lambda: validate_product_manifest_contract(
+                reqs, inactive,
+                {"version": 1, "bindings": [{"requirement": "FS-998-NR-001", "tasks": ["missing"]}]},
+                ("check",),
+            ),
+            "unknown Validation tasks",
+        )
 
     # Installed framework snapshots may omit framework-development Planning history.
     with tempfile.TemporaryDirectory() as tmp:
