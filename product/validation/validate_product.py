@@ -13,7 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "product" / "src" / "examples" / "task-tracker"
 BUILDER = ROOT / "product" / "src" / "app_builder.py"
-ADR = "https://github.com/wiigelec/adr.git"
+PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
+MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
 FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 
@@ -31,15 +32,6 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def adr_main():
-    return subprocess.run(
-        ["git", "ls-remote", ADR, "refs/heads/main"],
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.strip().split()[0]
-
-
 def app_builder_head():
     return subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -50,27 +42,45 @@ def app_builder_head():
     ).stdout.strip()
 
 
-def run_build(out: Path, build_path: Path, adr_repository: Path):
-    subprocess.run(
-        [
-            "python3",
-            str(BUILDER),
-            "--application",
-            str(BASE / "application.json"),
-            "--ruleset",
-            str(BASE / "ruleset.json"),
-            "--dataset",
-            str(BASE / "dataset.json"),
-            "--build",
-            str(build_path),
-            "--output-dir",
-            str(out),
-            "--adr-repository",
-            str(adr_repository),
-        ],
+def run_build(
+    out: Path,
+    build_path: Path,
+    adr_repository: Path,
+    *,
+    application_path: Path | None = None,
+    ruleset_path: Path | None = None,
+    dataset_path: Path | None = None,
+    check: bool = True,
+):
+    cmd = [
+        "python3",
+        str(BUILDER),
+        "--application",
+        str(application_path or BASE / "application.json"),
+        "--ruleset",
+        str(ruleset_path or BASE / "ruleset.json"),
+        "--dataset",
+        str(dataset_path or BASE / "dataset.json"),
+        "--build",
+        str(build_path),
+        "--output-dir",
+        str(out),
+        "--adr-repository",
+        str(adr_repository),
+    ]
+    cp = subprocess.run(
+        cmd,
         cwd=ROOT,
-        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
+    if check and cp.returncode != 0:
+        raise SystemExit(
+            "FAIL: App Builder invocation failed: "
+            + (cp.stderr.strip() or cp.stdout.strip())
+        )
+    return cp
 
 
 def write_build(path: Path, packaging_profile: str):
@@ -120,9 +130,6 @@ def verify_provider_set(out: Path, expected_package_ref: dict):
             raise SystemExit(f"FAIL: provider duplicates package content {pid}")
         if r.get("package") != expected_package_ref:
             raise SystemExit(f"FAIL: provider does not share package reference {pid}")
-        instructions = r["initialization"]["provider"]["instructions"]
-        if any("complete updated realization" in item.lower() for item in instructions):
-            raise SystemExit(f"FAIL: FS-001 complete-realization guidance leaked into FS-002 {pid}")
 
 
 def mutate_dataset(dataset):
@@ -132,7 +139,10 @@ def mutate_dataset(dataset):
 
 
 def validate_single_file(out: Path, rules, dataset):
-    package = out / "package" / "package.json"
+    package_dir = out / "package"
+    if sorted(p.name for p in package_dir.iterdir()) != ["package.json"]:
+        raise SystemExit("FAIL: single-file package shape")
+    package = package_dir / "package.json"
     value = read_json(package)
     if value != {"ruleset": rules, "dataset": dataset}:
         raise SystemExit("FAIL: single-file source fidelity")
@@ -186,6 +196,8 @@ def validate_single_git(out: Path, rules, dataset):
         raise SystemExit("FAIL: single-git remote configured")
     if git(repo, "symbolic-ref", "--short", "HEAD") != "main":
         raise SystemExit("FAIL: single-git canonical branch")
+    if git(repo, "rev-list", "--count", "HEAD") != "1":
+        raise SystemExit("FAIL: single-git must contain exactly one initial commit")
     expected_ref = {
         "profile": "single-git",
         "storage": "git",
@@ -196,19 +208,12 @@ def validate_single_git(out: Path, rules, dataset):
     verify_provider_set(out, expected_ref)
 
     rules_hash = sha(repo / "ruleset.json")
-    before = git(repo, "rev-parse", "HEAD")
     (repo / "dataset.json").write_text(
         json.dumps(mutate_dataset(dataset), indent=2) + "\n",
         encoding="utf-8",
     )
-    changed = git(repo, "status", "--porcelain").splitlines()
-    if changed != [" M dataset.json"]:
-        raise SystemExit(f"FAIL: single-git mutation paths {changed}")
-    git(repo, "add", "--", "dataset.json")
-    git(repo, "commit", "-q", "-m", "Dataset mutation fixture", env_extra=MUTATION_ENV)
-    after = git(repo, "rev-parse", "HEAD")
-    if before == after or sha(repo / "ruleset.json") != rules_hash:
-        raise SystemExit("FAIL: single-git mutation preservation")
+    if sha(repo / "ruleset.json") != rules_hash:
+        raise SystemExit("FAIL: single-git Dataset mutation changed Ruleset")
 
 
 def validate_split_git(out: Path, rules, dataset):
@@ -224,6 +229,10 @@ def validate_split_git(out: Path, rules, dataset):
         raise SystemExit("FAIL: split-git Ruleset canonical branch")
     if git(dataset_repo, "symbolic-ref", "--short", "HEAD") != "main":
         raise SystemExit("FAIL: split-git Dataset canonical branch")
+    if git(rules_repo, "rev-list", "--count", "HEAD") != "1":
+        raise SystemExit("FAIL: split-git Ruleset repository must contain exactly one initial commit")
+    if git(dataset_repo, "rev-list", "--count", "HEAD") != "1":
+        raise SystemExit("FAIL: split-git Dataset repository must contain exactly one initial commit")
     expected_ref = {
         "profile": "split-git",
         "storage": "git",
@@ -237,20 +246,15 @@ def validate_split_git(out: Path, rules, dataset):
 
     rules_head = git(rules_repo, "rev-parse", "HEAD")
     rules_hash = sha(rules_repo / "ruleset.json")
-    dataset_head = git(dataset_repo, "rev-parse", "HEAD")
     (dataset_repo / "dataset.json").write_text(
         json.dumps(mutate_dataset(dataset), indent=2) + "\n",
         encoding="utf-8",
     )
-    changed = git(dataset_repo, "status", "--porcelain").splitlines()
-    if changed != [" M dataset.json"]:
-        raise SystemExit(f"FAIL: split-git Dataset mutation paths {changed}")
-    git(dataset_repo, "add", "--", "dataset.json")
-    git(dataset_repo, "commit", "-q", "-m", "Dataset mutation fixture", env_extra=MUTATION_ENV)
-    if git(dataset_repo, "rev-parse", "HEAD") == dataset_head:
-        raise SystemExit("FAIL: split-git Dataset HEAD did not evolve")
-    if git(rules_repo, "rev-parse", "HEAD") != rules_head or sha(rules_repo / "ruleset.json") != rules_hash:
-        raise SystemExit("FAIL: split-git mutation changed Ruleset repository")
+    if (
+        git(rules_repo, "rev-parse", "HEAD") != rules_head
+        or sha(rules_repo / "ruleset.json") != rules_hash
+    ):
+        raise SystemExit("FAIL: split-git Dataset mutation changed Ruleset repository")
 
 
 def compare_initial(profile: str, a: Path, b: Path):
@@ -273,18 +277,15 @@ def compare_initial(profile: str, a: Path, b: Path):
             if ah != bh:
                 raise SystemExit(f"FAIL: split-git initial HEAD determinism {name}")
 
-    for pid in PROVIDERS:
-        pa = a / "providers" / f"{pid}.json"
-        pb = b / "providers" / f"{pid}.json"
-        if pa.read_bytes() != pb.read_bytes():
-            raise SystemExit(f"FAIL: FS-002 deterministic provider adaptation {profile}/{pid}")
-
 
 def validate_fs001(app, rules, dataset, adr, builder, adr_repository: Path):
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         pa, pb = Path(a), Path(b)
         run_build(pa, BASE / "build.json", adr_repository)
         run_build(pb, BASE / "build.json", adr_repository)
+        expected_names = sorted(f"{pid}.json" for pid in PROVIDERS)
+        if sorted(p.name for p in pa.iterdir()) != expected_names:
+            raise SystemExit("FAIL: FS-001 provider output set")
         for pid in PROVIDERS:
             aa, bb = pa / f"{pid}.json", pb / f"{pid}.json"
             if not aa.is_file() or aa.read_bytes() != bb.read_bytes():
@@ -340,16 +341,214 @@ def validate_provider_selection_independence(profile: str, adr_repository: Path,
     if identities[0] != identities[1]:
         raise SystemExit(f"FAIL: provider selection changed package {profile}")
 
-def validate_fs002(rules, dataset, adr_repository: Path):
+def require_clean_tree():
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    if dirty.splitlines():
+        raise SystemExit("FAIL: validation requires a clean committed App Builder tree")
+
+
+def source_snapshot(names):
+    return {BASE / name: sha(BASE / name) for name in names}
+
+
+def assert_source_snapshot(before):
+    for path, digest in before.items():
+        if sha(path) != digest:
+            raise SystemExit(f"FAIL: source mutated {path.relative_to(ROOT)}")
+
+
+def create_adr_fixture(parent: Path):
+    repo = parent / "adr"
+    repo.mkdir()
+    git(repo, "init", "-q", "-b", "main")
+    seed = repo / "product" / "src" / "validation.seed.json"
+    seed.parent.mkdir(parents=True)
+    seed.write_text('{"fixture":"adr-app-builder-validation"}\n', encoding="utf-8")
+    git(repo, "add", "--", "product/src/validation.seed.json")
+    git(
+        repo,
+        "commit",
+        "-q",
+        "-m",
+        "ADR validation fixture",
+        env_extra={
+            "GIT_AUTHOR_NAME": "ADR Validation Fixture",
+            "GIT_AUTHOR_EMAIL": "validation-fixture@adr.invalid",
+            "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
+            "GIT_COMMITTER_NAME": "ADR Validation Fixture",
+            "GIT_COMMITTER_EMAIL": "validation-fixture@adr.invalid",
+            "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+00:00",
+        },
+    )
+    return repo, git(repo, "rev-parse", "HEAD")
+
+
+def task_profile_contracts():
+    require_clean_tree()
+
+    expected_fs002 = {
+        "single-file": ("file", "single"),
+        "split-files": ("file", "split"),
+        "single-git": ("git", "single"),
+        "split-git": ("git", "split"),
+    }
+    for profile_id, (storage, topology) in expected_fs002.items():
+        value = read_json(PROFILES_ROOT / f"{profile_id}.json")
+        if value.get("id") != profile_id:
+            raise SystemExit(f"FAIL: packaging profile id {profile_id}")
+        if value.get("package_type") != "ruleset-dataset":
+            raise SystemExit(f"FAIL: packaging profile package_type {profile_id}")
+        if (value.get("storage"), value.get("topology")) != (storage, topology):
+            raise SystemExit(f"FAIL: packaging profile topology {profile_id}")
+
+    legacy = read_json(PROFILES_ROOT / "self-contained-json.json")
+    preservation = legacy.get("preservation")
+    if (
+        legacy.get("id") != "self-contained-json"
+        or not isinstance(preservation, dict)
+        or preservation.get("writeback") != "complete-realization"
+        or preservation.get("preserve_non_dataset_realization_material") is not True
+    ):
+        raise SystemExit("FAIL: self-contained-json preservation contract")
+
+    for provider_id in PROVIDERS:
+        provider = read_json(PROFILES_ROOT / f"{provider_id}.json")
+        if provider.get("id") != provider_id:
+            raise SystemExit(f"FAIL: provider profile id {provider_id}")
+        for label in ("bootstrap", "package_bootstrap"):
+            value = provider.get(label)
+            if (
+                not isinstance(value, dict)
+                or value.get("mode") != "initialize"
+                or not isinstance(value.get("instructions"), list)
+                or not value["instructions"]
+                or not all(isinstance(item, str) and item for item in value["instructions"])
+            ):
+                raise SystemExit(f"FAIL: provider {provider_id} {label} shape")
+
+    copilot = read_json(PROFILES_ROOT / "microsoft-copilot.json")
+    copilot_text = "\n".join(copilot["bootstrap"]["instructions"]).lower()
+    if "fresh copilot chat" not in copilot_text:
+        raise SystemExit("FAIL: Microsoft Copilot profile lacks explicit fresh-session guidance")
+    if "complete updated realization" not in copilot_text:
+        raise SystemExit(
+            "FAIL: Microsoft Copilot profile lacks complete-realization preservation guidance"
+        )
+
+
+def task_fs001_build():
+    require_clean_tree()
+    before = source_snapshot(["application.json", "ruleset.json", "dataset.json", "build.json"])
+    builder = app_builder_head()
+    app = read_json(BASE / "application.json")
+    rules = read_json(BASE / "ruleset.json")
+    dataset = read_json(BASE / "dataset.json")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        adr_repository, adr = create_adr_fixture(Path(tmp))
+        validate_fs001(app, rules, dataset, adr, builder, adr_repository)
+
+    assert_source_snapshot(before)
+
+
+def expect_build_failure(
+    label: str,
+    adr_repository: Path,
+    *,
+    application=None,
+    ruleset=None,
+    dataset=None,
+    build=None,
+):
+    application = application if application is not None else read_json(BASE / "application.json")
+    ruleset = ruleset if ruleset is not None else read_json(BASE / "ruleset.json")
+    dataset = dataset if dataset is not None else read_json(BASE / "dataset.json")
+    build = build if build is not None else read_json(BASE / "build.json")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        application_path = root / "application.json"
+        ruleset_path = root / "ruleset.json"
+        dataset_path = root / "dataset.json"
+        build_path = root / "build.json"
+        for path, value in (
+            (application_path, application),
+            (ruleset_path, ruleset),
+            (dataset_path, dataset),
+            (build_path, build),
+        ):
+            path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+
+        cp = run_build(
+            root / "out",
+            build_path,
+            adr_repository,
+            application_path=application_path,
+            ruleset_path=ruleset_path,
+            dataset_path=dataset_path,
+            check=False,
+        )
+        if cp.returncode == 0:
+            raise SystemExit(f"FAIL: invalid input accepted: {label}")
+
+
+def task_fs001_input_validation():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        adr_repository, _ = create_adr_fixture(Path(tmp))
+
+        app = read_json(BASE / "application.json")
+        bad = json.loads(json.dumps(app))
+        bad.pop("id", None)
+        expect_build_failure("missing application.id", adr_repository, application=bad)
+
+        bad = json.loads(json.dumps(app))
+        bad.pop("initialization", None)
+        expect_build_failure("missing application.initialization", adr_repository, application=bad)
+
+        dataset = read_json(BASE / "dataset.json")
+        bad_dataset = json.loads(json.dumps(dataset))
+        bad_dataset.setdefault("instance", {}).pop("id", None)
+        expect_build_failure("missing dataset.instance.id", adr_repository, dataset=bad_dataset)
+
+        build = read_json(BASE / "build.json")
+        bad_build = json.loads(json.dumps(build))
+        bad_build["providers"] = [PROVIDERS[0], PROVIDERS[0]]
+        expect_build_failure("duplicate providers", adr_repository, build=bad_build)
+
+        bad_build = json.loads(json.dumps(build))
+        bad_build["packaging_profile"] = "__missing_packaging_profile__"
+        expect_build_failure("unknown packaging profile", adr_repository, build=bad_build)
+
+        bad_build = json.loads(json.dumps(build))
+        bad_build["providers"] = ["__missing_provider_profile__"]
+        expect_build_failure("unknown provider profile", adr_repository, build=bad_build)
+
+
+def validate_fs002_group(profiles):
+    before = source_snapshot(["ruleset.json", "dataset.json"])
+    rules = read_json(BASE / "ruleset.json")
+    dataset = read_json(BASE / "dataset.json")
     validators = {
         "single-file": validate_single_file,
         "split-files": validate_split_files,
         "single-git": validate_single_git,
         "split-git": validate_split_git,
     }
-    with tempfile.TemporaryDirectory() as configs:
-        configs = Path(configs)
-        for profile in FS002_PROFILES:
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        adr_repository, _ = create_adr_fixture(root)
+        configs = root / "configs"
+        configs.mkdir()
+
+        for profile in profiles:
             build_path = configs / f"{profile}.json"
             write_build(build_path, profile)
             with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
@@ -358,65 +557,66 @@ def validate_fs002(rules, dataset, adr_repository: Path):
                 run_build(pb, build_path, adr_repository)
                 compare_initial(profile, pa, pb)
                 validators[profile](pa, rules, dataset)
+
+    assert_source_snapshot(before)
+
+
+def task_fs002_file_packaging():
+    require_clean_tree()
+    validate_fs002_group(["single-file", "split-files"])
+
+
+def task_fs002_git_packaging():
+    require_clean_tree()
+    validate_fs002_group(["single-git", "split-git"])
+
+
+def task_fs002_provider_independence():
+    require_clean_tree()
+    before = source_snapshot(["ruleset.json", "dataset.json"])
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        adr_repository, _ = create_adr_fixture(root)
+        configs = root / "configs"
+        configs.mkdir()
+        for profile in FS002_PROFILES:
             validate_provider_selection_independence(profile, adr_repository, configs)
-
-
-def validate_app_builder_regression():
-    dirty = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.strip()
-    if dirty:
-        raise SystemExit("FAIL: validation requires a clean committed App Builder tree")
-
-    src = [BASE / x for x in ["application.json", "ruleset.json", "dataset.json", "build.json"]]
-    before = {p: sha(p) for p in src}
-    builder = app_builder_head()
-    app = read_json(BASE / "application.json")
-    rules = read_json(BASE / "ruleset.json")
-    dataset = read_json(BASE / "dataset.json")
-
-    with tempfile.TemporaryDirectory() as adr_cache_tmp:
-        adr_repository = Path(adr_cache_tmp) / "adr"
-        subprocess.run(
-            ["git", "clone", "-q", "--depth=1", "--branch", "main", ADR, str(adr_repository)],
-            cwd=ROOT,
-            check=True,
-        )
-        adr = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=adr_repository,
-            text=True,
-            capture_output=True,
-            check=True,
-        ).stdout.strip()
-        validate_fs001(app, rules, dataset, adr, builder, adr_repository)
-        validate_fs002(rules, dataset, adr_repository)
-
-    for p, digest in before.items():
-        if sha(p) != digest:
-            raise SystemExit(f"FAIL: source mutated {p.relative_to(ROOT)}")
-
-    print(
-        "PASS: FS-001 compatibility and FS-002 four-topology packaging, exact parsed fidelity, "
-        "shared-provider package composition, Dataset-only mutation isolation, deterministic Git "
-        "initialization, source immutability, and repeat-build determinism."
-    )
-
-
+    assert_source_snapshot(before)
 
 
 TASKS = {
-    "app-builder-regression": validate_app_builder_regression,
+    "profile-contracts": task_profile_contracts,
+    "fs001-build": task_fs001_build,
+    "fs001-input-validation": task_fs001_input_validation,
+    "fs002-file-packaging": task_fs002_file_packaging,
+    "fs002-git-packaging": task_fs002_git_packaging,
+    "fs002-provider-independence": task_fs002_provider_independence,
 }
 
 
 def fail(message: str) -> int:
     print(f"FAIL product-validation: {message}", file=sys.stderr)
     return 1
+
+
+def required_tasks():
+    data = read_json(MANIFEST)
+    required = []
+    seen = set()
+    for binding in data.get("bindings", []):
+        for task in binding.get("tasks", []):
+            if task not in seen:
+                seen.add(task)
+                required.append(task)
+    return required
+
+
+def run_task(name: str):
+    fn = TASKS.get(name)
+    if fn is None:
+        raise SystemExit(f"FAIL product-validation: unknown product Validation task: {name}")
+    fn()
+    print(f"PASS {name}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -434,16 +634,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.task:
-        fn = TASKS.get(args.task)
-        if fn is None:
+        if args.task not in TASKS:
             return fail(f"unknown product Validation task: {args.task}")
-        fn()
+        run_task(args.task)
         return 0
 
-    for fn in TASKS.values():
-        fn()
+    for task in required_tasks():
+        run_task(task)
     return 0
 
 
+if __name__ == "__main__":
+    raise SystemExit(main())
 if __name__ == "__main__":
     raise SystemExit(main())
