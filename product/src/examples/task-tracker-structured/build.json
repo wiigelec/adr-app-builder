@@ -1,0 +1,28 @@
+{
+  "packaging_profile": "single-git",
+  "providers": [
+    "generic-self-contained",
+    "microsoft-copilot"
+  ],
+  "runtime": {
+    "ruleset": {
+      "representation": "tree",
+      "files": {
+        "purpose.json": "/purpose",
+        "authority.json": "/authority",
+        "standard-interactions.json": "/standard_interactions",
+        "task-states.json": "/task_states",
+        "transitions.json": "/transitions",
+        "invariants.json": "/invariants"
+      }
+    },
+    "dataset": {
+      "representation": "tree",
+      "files": {
+        "instance.json": "/instance",
+        "state.json": "/state",
+        "history.json": "/history"
+      }
+    }
+  }
+}

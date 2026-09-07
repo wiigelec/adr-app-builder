@@ -2,25 +2,25 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
 import subprocess
 import tempfile
-from pathlib import Path
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "product" / "src" / "profiles"
 DEFAULT_ADR_REPOSITORY = "https://github.com/wiigelec/adr.git"
 FS002_PROFILES = {"single-file", "split-files", "single-git", "split-git"}
 
-GIT_ENV = {
+GIT_IDENTITY = {
     "GIT_AUTHOR_NAME": "ADR App Builder",
     "GIT_AUTHOR_EMAIL": "app-builder@adr.invalid",
-    "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
     "GIT_COMMITTER_NAME": "ADR App Builder",
     "GIT_COMMITTER_EMAIL": "app-builder@adr.invalid",
-    "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+00:00",
 }
 GIT_INITIAL_MESSAGE = "ADR App Builder initial package"
 
@@ -33,6 +33,291 @@ def write_json(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
+
+
+_MISSING = object()
+
+
+def json_bytes(value) -> bytes:
+    return (json.dumps(value, indent=2) + "\n").encode("utf-8")
+
+
+def decode_json_pointer(pointer: str) -> tuple[str, ...]:
+    if not isinstance(pointer, str):
+        raise SystemExit("runtime tree selector must be a string")
+    if pointer == "":
+        return ()
+    if not pointer.startswith("/"):
+        raise SystemExit(f"invalid RFC 6901 source selector: {pointer}")
+    tokens = []
+    for raw in pointer[1:].split("/"):
+        decoded = []
+        i = 0
+        while i < len(raw):
+            if raw[i] != "~":
+                decoded.append(raw[i])
+                i += 1
+                continue
+            if i + 1 >= len(raw) or raw[i + 1] not in {"0", "1"}:
+                raise SystemExit(f"invalid RFC 6901 source selector: {pointer}")
+            decoded.append("~" if raw[i + 1] == "0" else "/")
+            i += 2
+        tokens.append("".join(decoded))
+    return tuple(tokens)
+
+
+def resolve_pointer(source, pointer: str):
+    value = source
+    for token in decode_json_pointer(pointer):
+        if isinstance(value, dict):
+            if token not in value:
+                raise SystemExit(f"nonexistent source selector: {pointer}")
+            value = value[token]
+        elif isinstance(value, list):
+            if not token.isdigit() or (len(token) > 1 and token.startswith("0")):
+                raise SystemExit(f"nonexistent source selector: {pointer}")
+            index = int(token)
+            if index >= len(value):
+                raise SystemExit(f"nonexistent source selector: {pointer}")
+            value = value[index]
+        else:
+            raise SystemExit(f"nonexistent source selector: {pointer}")
+    return value
+
+
+def terminal_paths(value, prefix=()):
+    if isinstance(value, dict):
+        if not value:
+            yield prefix
+        else:
+            for key, child in value.items():
+                yield from terminal_paths(child, prefix + (key,))
+    elif isinstance(value, list):
+        if not value:
+            yield prefix
+        else:
+            for index, child in enumerate(value):
+                yield from terminal_paths(child, prefix + (str(index),))
+    else:
+        yield prefix
+
+
+def new_container(value):
+    if isinstance(value, dict):
+        return {}
+    if isinstance(value, list):
+        return [_MISSING for _ in value]
+    return _MISSING
+
+
+def assign_reconstructed(root, source, tokens, selected):
+    if not tokens:
+        return copy.deepcopy(selected)
+    out = root
+    src = source
+    for position, token in enumerate(tokens):
+        last = position == len(tokens) - 1
+        if isinstance(src, dict):
+            child = src[token]
+            if last:
+                out[token] = copy.deepcopy(selected)
+            else:
+                if token not in out:
+                    out[token] = new_container(child)
+                out = out[token]
+            src = child
+        elif isinstance(src, list):
+            index = int(token)
+            child = src[index]
+            if last:
+                out[index] = copy.deepcopy(selected)
+            else:
+                if out[index] is _MISSING:
+                    out[index] = new_container(child)
+                out = out[index]
+            src = child
+        else:
+            raise SystemExit("internal reconstruction failure")
+    return root
+
+
+def normalize_runtime_path(path: str) -> str:
+    if not isinstance(path, str) or not path or path.startswith("/") or "\\" in path:
+        raise SystemExit(f"invalid relative output path: {path!r}")
+    segments = path.split("/")
+    if any(segment in {"", ".", ".."} for segment in segments):
+        raise SystemExit(f"invalid relative output path: {path}")
+    if ".git" in segments:
+        raise SystemExit(f"invalid relative output path: {path}")
+    normalized = PurePosixPath(path).as_posix()
+    if normalized != path:
+        raise SystemExit(f"invalid relative output path: {path}")
+    return normalized
+
+
+def validate_tree_mapping(component: str, source, mapping):
+    if not isinstance(mapping, dict) or not mapping:
+        raise SystemExit(f"{component} tree mapping must be a non-empty object")
+
+    entries = []
+    normalized_paths = set()
+    selectors = []
+    for output_path, selector in mapping.items():
+        normalized = normalize_runtime_path(output_path)
+        if normalized in normalized_paths:
+            raise SystemExit(f"duplicate normalized output path: {normalized}")
+        normalized_paths.add(normalized)
+        tokens = decode_json_pointer(selector)
+        selected = resolve_pointer(source, selector)
+        entries.append((normalized, selector, tokens, selected))
+        selectors.append((selector, tokens))
+
+    seen = set()
+    for selector, _ in selectors:
+        if selector in seen:
+            raise SystemExit(f"duplicate source selector within {component} mapping: {selector}")
+        seen.add(selector)
+
+    for i, (selector_a, tokens_a) in enumerate(selectors):
+        for selector_b, tokens_b in selectors[i + 1:]:
+            shorter, longer = (
+                (tokens_a, tokens_b)
+                if len(tokens_a) <= len(tokens_b)
+                else (tokens_b, tokens_a)
+            )
+            if longer[:len(shorter)] == shorter:
+                raise SystemExit(
+                    f"overlapping ancestor/descendant source selectors: {selector_a} / {selector_b}"
+                )
+
+    selector_tokens = [tokens for _, tokens in selectors]
+    for terminal in terminal_paths(source):
+        if not any(terminal[:len(tokens)] == tokens for tokens in selector_tokens):
+            raise SystemExit(f"incomplete {component} tree mapping omits source material")
+
+    reconstructed = new_container(source)
+    for _, _, tokens, selected in entries:
+        reconstructed = assign_reconstructed(reconstructed, source, tokens, selected)
+    if reconstructed != source:
+        raise SystemExit(
+            f"{component} tree mapping cannot reconstruct a value semantically equal to the source"
+        )
+    return sorted(entries, key=lambda item: item[0])
+
+
+def runtime_component_spec(build, component: str, source):
+    runtime = build.get("runtime")
+    if runtime is None:
+        return {"representation": "file"}
+    require_object("build.runtime", runtime)
+    raw = runtime.get(component, {"representation": "file"})
+    require_object(f"build.runtime.{component}", raw)
+    representation = raw.get("representation", "file")
+    if representation == "file":
+        if "files" in raw:
+            raise SystemExit(f"{component} file representation shall not define files mapping")
+        return {"representation": "file"}
+    if representation != "tree":
+        raise SystemExit(f"unsupported runtime representation: {component}/{representation}")
+    return {
+        "representation": "tree",
+        "entries": validate_tree_mapping(component, source, raw.get("files")),
+    }
+
+
+def realize_component(component: str, source, spec):
+    if spec["representation"] == "file":
+        path = f"{component}.json"
+        return {path: json_bytes(source)}, {"kind": "file", "path": path}
+
+    files = {}
+    for output_path, _, _, selected in spec["entries"]:
+        files[f"{component}/{output_path}"] = json_bytes(selected)
+    return files, {"kind": "tree", "path": component}
+
+
+def init_config_files(input_paths):
+    return {
+        "init-config/application.json": input_paths["application"].read_bytes(),
+        "init-config/ruleset.json": input_paths["ruleset"].read_bytes(),
+        "init-config/dataset.json": input_paths["dataset"].read_bytes(),
+        "init-config/build.json": input_paths["build"].read_bytes(),
+    }
+
+
+def guidance_files(profile_id: str, role: str, component_refs):
+    locations = "\n".join(
+        f"- {name}: `{ref['path']}` ({ref['kind']})"
+        for name, ref in sorted(component_refs.items())
+    )
+    if role == "single":
+        role_text = "This repository contains the runtime Ruleset and persisted runtime Dataset."
+        agents_role = (
+            "Read the runtime Ruleset, initialize active working state from the runtime Dataset, "
+            "maintain governed working state during the session, and persist it only when the user "
+            "requests or accepts a save."
+        )
+    elif role == "ruleset":
+        role_text = "This repository contains the runtime Ruleset. Persisted Dataset state is external."
+        agents_role = (
+            "The local runtime Ruleset defines behavior. Persisted Dataset state is external; ordinary "
+            "application-state saves do not belong in this repository."
+        )
+    else:
+        role_text = "This repository contains the persisted runtime Dataset. The applicable Ruleset is external."
+        agents_role = (
+            "The local runtime Dataset is persisted application state. The applicable runtime Ruleset is "
+            "external. Initialize active working state from the Dataset and persist current governed state "
+            "only when the user requests or accepts a save."
+        )
+
+    readme = (
+        "# ADR App Builder Generated Repository\n\n"
+        f"Packaging profile: `{profile_id}`\n\n"
+        f"{role_text}\n\n"
+        "## Runtime components\n\n"
+        f"{locations}\n\n"
+        "## Initialization inputs\n\n"
+        "`init-config/` contains byte-for-byte copies of the four App Builder CLI input files that "
+        "created this repository. Those files reproduce the original build invocation; they are not "
+        "runtime Ruleset authority or mutable Dataset state.\n\n"
+        "## Working state and save\n\n"
+        "Active application working state may be newer than the persisted Dataset. Governed edits do "
+        "not automatically persist. A user-requested or user-accepted save writes current governed "
+        "working state to the runtime Dataset while preserving non-Dataset realization material.\n"
+    )
+
+    tree_note = ""
+    if any(ref["kind"] == "tree" for ref in component_refs.values()):
+        tree_note = (
+            "\nFor tree-backed runtime components, `init-config/build.json` records the build-owned "
+            "RFC 6901 physical realization mapping. Use that mapping only to locate or reconstruct "
+            "physical runtime material; it does not become Ruleset or Dataset semantic authority.\n"
+        )
+
+    agents = (
+        "# Generated Application Agent Guidance\n\n"
+        f"{agents_role}\n\n"
+        "Active governed application working state is the current state for the active session and may "
+        "differ from the last persisted Dataset. Ordinary conversation content is not automatically "
+        "application state.\n\n"
+        "Do not automatically save governed edits. Save only when the user requests or accepts save.\n\n"
+        "During ordinary save, preserve runtime Ruleset material, `init-config/`, `README.md`, `AGENTS.md`, "
+        "and all other non-Dataset realization material. Never use `init-config/dataset.json` as mutable "
+        "runtime storage.\n"
+        + tree_note
+    )
+    return {"README.md": readme.encode(), "AGENTS.md": agents.encode()}
+
+
+def merge_files(*groups):
+    merged = {}
+    for group in groups:
+        for path, content in group.items():
+            if path in merged:
+                raise SystemExit(f"package-owned path collision: {path}")
+            merged[path] = content
+    return merged
 
 def require_object(name, value):
     if not isinstance(value, dict):
@@ -183,22 +468,34 @@ def run_git(repo: Path, args: list[str], *, env_extra=None) -> subprocess.Comple
     return p
 
 
-def init_git_repo(repo: Path, files: dict[str, object]) -> None:
+
+def init_git_repo(repo: Path, files: dict[str, bytes]) -> None:
     repo.mkdir(parents=True, exist_ok=False)
     run_git(repo, ["init", "-q", "-b", "main"])
-    for name, value in files.items():
-        write_json(repo / name, value)
+    for name in sorted(files):
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(files[name])
     run_git(repo, ["add", "--", *sorted(files)])
-    run_git(repo, ["commit", "-q", "-m", GIT_INITIAL_MESSAGE], env_extra=GIT_ENV)
+
+    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    commit_env = {
+        **GIT_IDENTITY,
+        "GIT_AUTHOR_DATE": created_at,
+        "GIT_COMMITTER_DATE": created_at,
+    }
+    run_git(repo, ["commit", "-q", "-m", GIT_INITIAL_MESSAGE], env_extra=commit_env)
 
 
-def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset) -> dict:
+def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset, build, input_paths) -> dict:
     package_dir = output_dir / "package"
     if package_dir.exists():
         raise SystemExit(f"package output already exists: {package_dir}")
     package_dir.mkdir(parents=True)
 
     if profile_id == "single-file":
+        if build.get("runtime") is not None:
+            raise SystemExit("FS-003 runtime realization is supported only for Git-backed profiles")
         write_json(package_dir / "package.json", {"ruleset": ruleset, "dataset": dataset})
         return {
             "profile": profile_id,
@@ -209,6 +506,8 @@ def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset) -> 
         }
 
     if profile_id == "split-files":
+        if build.get("runtime") is not None:
+            raise SystemExit("FS-003 runtime realization is supported only for Git-backed profiles")
         write_json(package_dir / "ruleset.json", ruleset)
         write_json(package_dir / "dataset.json", dataset)
         return {
@@ -219,32 +518,56 @@ def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset) -> 
             "components": {"ruleset": "ruleset.json", "dataset": "dataset.json"},
         }
 
+    rules_spec = runtime_component_spec(build, "ruleset", ruleset)
+    dataset_spec = runtime_component_spec(build, "dataset", dataset)
+    rules_files, rules_ref = realize_component("ruleset", ruleset, rules_spec)
+    dataset_files, dataset_ref = realize_component("dataset", dataset, dataset_spec)
+    init_files = init_config_files(input_paths)
+
     if profile_id == "single-git":
-        repo = package_dir / "repository"
-        init_git_repo(repo, {"ruleset.json": ruleset, "dataset.json": dataset})
+        guidance = guidance_files(
+            profile_id, "single", {"ruleset": rules_ref, "dataset": dataset_ref}
+        )
+        init_git_repo(
+            package_dir / "repository",
+            merge_files(init_files, rules_files, dataset_files, guidance),
+        )
         return {
             "profile": profile_id,
             "storage": "git",
             "topology": "single",
             "location": "../package/repository",
-            "components": {"ruleset": "ruleset.json", "dataset": "dataset.json"},
+            "components": {"ruleset": rules_ref, "dataset": dataset_ref},
         }
 
     if profile_id == "split-git":
-        init_git_repo(package_dir / "ruleset", {"ruleset.json": ruleset})
-        init_git_repo(package_dir / "dataset", {"dataset.json": dataset})
+        init_git_repo(
+            package_dir / "ruleset",
+            merge_files(
+                init_files,
+                rules_files,
+                guidance_files(profile_id, "ruleset", {"ruleset": rules_ref}),
+            ),
+        )
+        init_git_repo(
+            package_dir / "dataset",
+            merge_files(
+                init_files,
+                dataset_files,
+                guidance_files(profile_id, "dataset", {"dataset": dataset_ref}),
+            ),
+        )
         return {
             "profile": profile_id,
             "storage": "git",
             "topology": "split",
             "components": {
-                "ruleset": {"location": "../package/ruleset", "path": "ruleset.json"},
-                "dataset": {"location": "../package/dataset", "path": "dataset.json"},
+                "ruleset": {"location": "../package/ruleset", **rules_ref},
+                "dataset": {"location": "../package/dataset", **dataset_ref},
             },
         }
 
     raise SystemExit(f"unsupported FS-002 profile: {profile_id}")
-
 
 def validate_provider(provider_id: str):
     provider = profile(provider_id)
@@ -287,9 +610,9 @@ def build_legacy(application, ruleset, dataset, build, packaging, adr_commit, bu
         write_json(output_dir / f"{provider_id}.json", artifact)
 
 
-def build_fs002(application, ruleset, dataset, build, packaging, adr_commit, builder_commit, output_dir: Path):
+def build_fs002(application, ruleset, dataset, build, packaging, adr_commit, builder_commit, output_dir: Path, input_paths):
     validate_fs002_profile(packaging, build["packaging_profile"])
-    package_reference = build_fs002_package(output_dir, build["packaging_profile"], ruleset, dataset)
+    package_reference = build_fs002_package(output_dir, build["packaging_profile"], ruleset, dataset, build, input_paths)
 
     providers_dir = output_dir / "providers"
     providers_dir.mkdir(parents=True)
@@ -340,7 +663,22 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     if build["packaging_profile"] in FS002_PROFILES:
-        build_fs002(application, ruleset, dataset, build, packaging, adr_commit, builder_commit, args.output_dir)
+        build_fs002(
+            application,
+            ruleset,
+            dataset,
+            build,
+            packaging,
+            adr_commit,
+            builder_commit,
+            args.output_dir,
+            {
+                "application": args.application,
+                "ruleset": args.ruleset,
+                "dataset": args.dataset,
+                "build": args.build,
+            },
+        )
     else:
         build_legacy(application, ruleset, dataset, build, packaging, adr_commit, builder_commit, args.output_dir)
 
