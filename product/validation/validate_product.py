@@ -8,15 +8,20 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "product" / "src" / "examples" / "task-tracker"
+STRUCTURED_BASE = ROOT / "product" / "src" / "examples" / "task-tracker-structured"
 BUILDER = ROOT / "product" / "src" / "app_builder.py"
 PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
 FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(ROOT / "product" / "src"))
+from session_state import ApplicationSession
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -110,6 +115,42 @@ def repo_files(repo: Path):
     )
 
 
+def verify_git_initial_history(repo: Path, label: str):
+    if git(repo, "rev-list", "--count", "HEAD") != "1":
+        raise SystemExit(f"FAIL: {label} must contain exactly one initial commit")
+    if git(repo, "show", "-s", "--format=%s", "HEAD") != "ADR App Builder initial package":
+        raise SystemExit(f"FAIL: {label} initial commit message")
+
+    identity = git(
+        repo,
+        "show",
+        "-s",
+        "--format=%an%n%ae%n%cn%n%ce",
+        "HEAD",
+    ).splitlines()
+    if identity != [
+        "ADR App Builder",
+        "app-builder@adr.invalid",
+        "ADR App Builder",
+        "app-builder@adr.invalid",
+    ]:
+        raise SystemExit(f"FAIL: {label} initial author/committer identity")
+
+    dates = git(repo, "show", "-s", "--format=%at%n%ct", "HEAD").splitlines()
+    if len(dates) != 2:
+        raise SystemExit(f"FAIL: {label} initial timestamp shape")
+    now = int(time.time())
+    if any(abs(now - int(value)) > 300 for value in dates):
+        raise SystemExit(f"FAIL: {label} initial timestamp is not current")
+
+    committed_files = git(repo, "ls-tree", "-r", "--name-only", "HEAD").splitlines()
+    if committed_files != repo_files(repo):
+        raise SystemExit(f"FAIL: {label} initial commit does not contain complete generated tree")
+
+    if git(repo, "status", "--porcelain=v1", "--untracked-files=all").splitlines():
+        raise SystemExit(f"FAIL: {label} generated repository is dirty after initial commit")
+
+
 def verify_provider_set(out: Path, expected_package_ref: dict):
     providers = out / "providers"
     if sorted(p.name for p in providers.glob("*.json")) != sorted(f"{p}.json" for p in PROVIDERS):
@@ -178,7 +219,17 @@ def validate_split_files(out: Path, rules, dataset):
 
 def validate_single_git(out: Path, rules, dataset):
     repo = out / "package" / "repository"
-    if repo_files(repo) != ["dataset.json", "ruleset.json"]:
+    expected_files = [
+        "AGENTS.md",
+        "README.md",
+        "dataset.json",
+        "init-config/application.json",
+        "init-config/build.json",
+        "init-config/dataset.json",
+        "init-config/ruleset.json",
+        "ruleset.json",
+    ]
+    if repo_files(repo) != expected_files:
         raise SystemExit("FAIL: single-git worktree shape")
     if read_json(repo / "ruleset.json") != rules or read_json(repo / "dataset.json") != dataset:
         raise SystemExit("FAIL: single-git source fidelity")
@@ -186,14 +237,16 @@ def validate_single_git(out: Path, rules, dataset):
         raise SystemExit("FAIL: single-git remote configured")
     if git(repo, "symbolic-ref", "--short", "HEAD") != "main":
         raise SystemExit("FAIL: single-git canonical branch")
-    if git(repo, "rev-list", "--count", "HEAD") != "1":
-        raise SystemExit("FAIL: single-git must contain exactly one initial commit")
+    verify_git_initial_history(repo, "single-git")
     expected_ref = {
         "profile": "single-git",
         "storage": "git",
         "topology": "single",
         "location": "../package/repository",
-        "components": {"ruleset": "ruleset.json", "dataset": "dataset.json"},
+        "components": {
+            "ruleset": {"kind": "file", "path": "ruleset.json"},
+            "dataset": {"kind": "file", "path": "dataset.json"},
+        },
     }
     verify_provider_set(out, expected_ref)
 
@@ -209,7 +262,25 @@ def validate_single_git(out: Path, rules, dataset):
 def validate_split_git(out: Path, rules, dataset):
     rules_repo = out / "package" / "ruleset"
     dataset_repo = out / "package" / "dataset"
-    if repo_files(rules_repo) != ["ruleset.json"] or repo_files(dataset_repo) != ["dataset.json"]:
+    expected_rules = [
+        "AGENTS.md",
+        "README.md",
+        "init-config/application.json",
+        "init-config/build.json",
+        "init-config/dataset.json",
+        "init-config/ruleset.json",
+        "ruleset.json",
+    ]
+    expected_dataset = [
+        "AGENTS.md",
+        "README.md",
+        "dataset.json",
+        "init-config/application.json",
+        "init-config/build.json",
+        "init-config/dataset.json",
+        "init-config/ruleset.json",
+    ]
+    if repo_files(rules_repo) != expected_rules or repo_files(dataset_repo) != expected_dataset:
         raise SystemExit("FAIL: split-git worktree shape")
     if read_json(rules_repo / "ruleset.json") != rules or read_json(dataset_repo / "dataset.json") != dataset:
         raise SystemExit("FAIL: split-git source fidelity")
@@ -219,17 +290,23 @@ def validate_split_git(out: Path, rules, dataset):
         raise SystemExit("FAIL: split-git Ruleset canonical branch")
     if git(dataset_repo, "symbolic-ref", "--short", "HEAD") != "main":
         raise SystemExit("FAIL: split-git Dataset canonical branch")
-    if git(rules_repo, "rev-list", "--count", "HEAD") != "1":
-        raise SystemExit("FAIL: split-git Ruleset repository must contain exactly one initial commit")
-    if git(dataset_repo, "rev-list", "--count", "HEAD") != "1":
-        raise SystemExit("FAIL: split-git Dataset repository must contain exactly one initial commit")
+    verify_git_initial_history(rules_repo, "split-git Ruleset repository")
+    verify_git_initial_history(dataset_repo, "split-git Dataset repository")
     expected_ref = {
         "profile": "split-git",
         "storage": "git",
         "topology": "split",
         "components": {
-            "ruleset": {"location": "../package/ruleset", "path": "ruleset.json"},
-            "dataset": {"location": "../package/dataset", "path": "dataset.json"},
+            "ruleset": {
+                "location": "../package/ruleset",
+                "kind": "file",
+                "path": "ruleset.json",
+            },
+            "dataset": {
+                "location": "../package/dataset",
+                "kind": "file",
+                "path": "dataset.json",
+            },
         },
     }
     verify_provider_set(out, expected_ref)
@@ -256,16 +333,16 @@ def compare_initial(profile: str, a: Path, b: Path):
             if (a / "package" / name).read_bytes() != (b / "package" / name).read_bytes():
                 raise SystemExit(f"FAIL: split-files repeat determinism {name}")
     elif profile == "single-git":
-        ah = git(a / "package" / "repository", "rev-parse", "HEAD")
-        bh = git(b / "package" / "repository", "rev-parse", "HEAD")
-        if ah != bh:
-            raise SystemExit("FAIL: single-git initial HEAD determinism")
+        at = git(a / "package" / "repository", "rev-parse", "HEAD^{tree}")
+        bt = git(b / "package" / "repository", "rev-parse", "HEAD^{tree}")
+        if at != bt:
+            raise SystemExit("FAIL: single-git generated tree determinism")
     elif profile == "split-git":
         for name in ["ruleset", "dataset"]:
-            ah = git(a / "package" / name, "rev-parse", "HEAD")
-            bh = git(b / "package" / name, "rev-parse", "HEAD")
-            if ah != bh:
-                raise SystemExit(f"FAIL: split-git initial HEAD determinism {name}")
+            at = git(a / "package" / name, "rev-parse", "HEAD^{tree}")
+            bt = git(b / "package" / name, "rev-parse", "HEAD^{tree}")
+            if at != bt:
+                raise SystemExit(f"FAIL: split-git generated tree determinism {name}")
 
 
 def validate_fs001(app, rules, dataset, adr, builder, adr_repository: Path):
@@ -313,12 +390,18 @@ def package_identity(profile: str, out: Path):
             (out / "package" / "ruleset.json").read_bytes(),
             (out / "package" / "dataset.json").read_bytes(),
         )
+    def runtime_guidance_identity(repo: Path):
+        return tuple(
+            (relative, (repo / relative).read_bytes())
+            for relative in repo_files(repo)
+            if not relative.startswith("init-config/")
+        )
     if profile == "single-git":
-        return git(out / "package" / "repository", "rev-parse", "HEAD")
+        return runtime_guidance_identity(out / "package" / "repository")
     if profile == "split-git":
         return (
-            git(out / "package" / "ruleset", "rev-parse", "HEAD"),
-            git(out / "package" / "dataset", "rev-parse", "HEAD"),
+            runtime_guidance_identity(out / "package" / "ruleset"),
+            runtime_guidance_identity(out / "package" / "dataset"),
         )
     raise SystemExit(f"FAIL: unknown profile identity {profile}")
 
@@ -582,6 +665,327 @@ def task_fs002_provider_independence():
     assert_source_snapshot(before)
 
 
+def pointer_tokens(pointer: str):
+    if pointer == "":
+        return ()
+    return tuple(raw.replace("~1", "/").replace("~0", "~") for raw in pointer[1:].split("/"))
+
+
+def pointer_value(value, pointer: str):
+    current = value
+    for token in pointer_tokens(pointer):
+        current = current[token] if isinstance(current, dict) else current[int(token)]
+    return current
+
+
+def set_pointer_value(root, source, pointer: str, selected):
+    tokens = pointer_tokens(pointer)
+    if not tokens:
+        return json.loads(json.dumps(selected))
+    if root is None:
+        root = [] if isinstance(source, list) else {}
+    out, src = root, source
+    for position, token in enumerate(tokens):
+        last = position == len(tokens) - 1
+        if isinstance(src, dict):
+            child = src[token]
+            if last:
+                out[token] = json.loads(json.dumps(selected))
+            else:
+                if token not in out:
+                    out[token] = [] if isinstance(child, list) else {}
+                out = out[token]
+            src = child
+        else:
+            index = int(token)
+            child = src[index]
+            while len(out) < len(src):
+                out.append(None)
+            if last:
+                out[index] = json.loads(json.dumps(selected))
+            else:
+                if out[index] is None:
+                    out[index] = [] if isinstance(child, list) else {}
+                out = out[index]
+            src = child
+    return root
+
+
+def reconstruct_component(repo: Path, component: str, source, mapping):
+    root = None
+    for relative, selector in mapping.items():
+        root = set_pointer_value(root, source, selector, read_json(repo / component / relative))
+    return root
+
+
+def assert_init_config(repo: Path, application_path: Path, ruleset_path: Path, dataset_path: Path, build_path: Path):
+    expected = {
+        "application.json": application_path.read_bytes(),
+        "ruleset.json": ruleset_path.read_bytes(),
+        "dataset.json": dataset_path.read_bytes(),
+        "build.json": build_path.read_bytes(),
+    }
+    for name, content in expected.items():
+        if (repo / "init-config" / name).read_bytes() != content:
+            raise SystemExit(f"FAIL: FS-003 init-config byte fidelity {name}")
+
+
+def snapshot_without_dataset(repo: Path):
+    return {
+        relative: sha(repo / relative)
+        for relative in repo_files(repo)
+        if relative != "dataset.json" and not relative.startswith("dataset/")
+    }
+
+
+def assert_snapshot(repo: Path, snapshot):
+    for relative, digest in snapshot.items():
+        if sha(repo / relative) != digest:
+            raise SystemExit(f"FAIL: FS-003 save changed non-Dataset material {relative}")
+
+
+def write_tree_dataset(repo: Path, dataset, mapping):
+    for relative, selector in mapping.items():
+        (repo / "dataset" / relative).write_text(
+            json.dumps(pointer_value(dataset, selector), indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+
+def structured_build_value(profile: str, providers=None, *, mixed=False):
+    value = read_json(STRUCTURED_BASE / "build.json")
+    value["packaging_profile"] = profile
+    if providers is not None:
+        value["providers"] = providers
+    if mixed:
+        value["runtime"]["ruleset"] = {"representation": "file"}
+    return value
+
+
+def task_fs003_git_structured():
+    require_clean_tree()
+    source_paths = [
+        STRUCTURED_BASE / "application.json",
+        STRUCTURED_BASE / "ruleset.json",
+        STRUCTURED_BASE / "dataset.json",
+        STRUCTURED_BASE / "build.json",
+    ]
+    before = {path: sha(path) for path in source_paths}
+    rules = read_json(STRUCTURED_BASE / "ruleset.json")
+    dataset = read_json(STRUCTURED_BASE / "dataset.json")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        adr_repository, _ = create_adr_fixture(root)
+        configs = root / "configs"
+        configs.mkdir()
+
+        for profile in ["single-git", "split-git"]:
+            build_path = configs / f"{profile}.json"
+            value = structured_build_value(profile)
+            build_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+            with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+                pa, pb = Path(a), Path(b)
+                for out in [pa, pb]:
+                    run_build(
+                        out,
+                        build_path,
+                        adr_repository,
+                        application_path=STRUCTURED_BASE / "application.json",
+                        ruleset_path=STRUCTURED_BASE / "ruleset.json",
+                        dataset_path=STRUCTURED_BASE / "dataset.json",
+                    )
+
+                if profile == "single-git":
+                    repo = pa / "package" / "repository"
+                    repo_b = pb / "package" / "repository"
+                    verify_git_initial_history(repo, "FS-003 single-git")
+                    verify_git_initial_history(repo_b, "FS-003 single-git repeat")
+                    if git(repo, "rev-parse", "HEAD^{tree}") != git(repo_b, "rev-parse", "HEAD^{tree}"):
+                        raise SystemExit("FAIL: FS-003 single-git generated tree repeat determinism")
+                    assert_init_config(
+                        repo,
+                        STRUCTURED_BASE / "application.json",
+                        STRUCTURED_BASE / "ruleset.json",
+                        STRUCTURED_BASE / "dataset.json",
+                        build_path,
+                    )
+                    if reconstruct_component(
+                        repo, "ruleset", rules, value["runtime"]["ruleset"]["files"]
+                    ) != rules:
+                        raise SystemExit("FAIL: FS-003 Ruleset lossless reconstruction")
+                    mapping = value["runtime"]["dataset"]["files"]
+                    if reconstruct_component(repo, "dataset", dataset, mapping) != dataset:
+                        raise SystemExit("FAIL: FS-003 Dataset lossless reconstruction")
+
+                    preserved = snapshot_without_dataset(repo)
+                    session = ApplicationSession(
+                        lambda: reconstruct_component(repo, "dataset", dataset, mapping),
+                        lambda current: write_tree_dataset(repo, current, mapping),
+                    )
+                    session.edit(
+                        lambda current: current.setdefault("state", {}).__setitem__(
+                            "fs003_validation_mutation", True
+                        )
+                    )
+                    if reconstruct_component(repo, "dataset", dataset, mapping) != dataset:
+                        raise SystemExit("FAIL: FS-003 edit persisted before save")
+                    session.save()
+                    saved = reconstruct_component(repo, "dataset", session.read(), mapping)
+                    if saved != session.read():
+                        raise SystemExit("FAIL: FS-003 explicit save did not persist active state")
+                    assert_snapshot(repo, preserved)
+                    if session.reopen() != saved:
+                        raise SystemExit("FAIL: FS-003 reopen did not restore persisted Dataset")
+                else:
+                    rules_repo = pa / "package" / "ruleset"
+                    dataset_repo = pa / "package" / "dataset"
+                    rules_repo_b = pb / "package" / "ruleset"
+                    dataset_repo_b = pb / "package" / "dataset"
+                    for candidate, label in [
+                        (rules_repo, "FS-003 split Ruleset"),
+                        (dataset_repo, "FS-003 split Dataset"),
+                        (rules_repo_b, "FS-003 split Ruleset repeat"),
+                        (dataset_repo_b, "FS-003 split Dataset repeat"),
+                    ]:
+                        verify_git_initial_history(candidate, label)
+                    if (
+                        git(rules_repo, "rev-parse", "HEAD^{tree}")
+                        != git(rules_repo_b, "rev-parse", "HEAD^{tree}")
+                        or git(dataset_repo, "rev-parse", "HEAD^{tree}")
+                        != git(dataset_repo_b, "rev-parse", "HEAD^{tree}")
+                    ):
+                        raise SystemExit("FAIL: FS-003 split-git generated tree repeat determinism")
+                    for repo in [rules_repo, dataset_repo]:
+                        assert_init_config(
+                            repo,
+                            STRUCTURED_BASE / "application.json",
+                            STRUCTURED_BASE / "ruleset.json",
+                            STRUCTURED_BASE / "dataset.json",
+                            build_path,
+                        )
+                    rules_head = git(rules_repo, "rev-parse", "HEAD")
+                    rules_snapshot = {
+                        relative: sha(rules_repo / relative)
+                        for relative in repo_files(rules_repo)
+                    }
+                    mapping = value["runtime"]["dataset"]["files"]
+                    session = ApplicationSession(
+                        lambda: reconstruct_component(dataset_repo, "dataset", dataset, mapping),
+                        lambda current: write_tree_dataset(dataset_repo, current, mapping),
+                    )
+                    session.edit(
+                        lambda current: current.setdefault("state", {}).__setitem__(
+                            "fs003_validation_mutation", True
+                        )
+                    )
+                    session.save()
+                    if git(rules_repo, "rev-parse", "HEAD") != rules_head:
+                        raise SystemExit("FAIL: FS-003 split save advanced Ruleset repository")
+                    assert_snapshot(rules_repo, rules_snapshot)
+
+        mixed_path = configs / "mixed.json"
+        mixed = structured_build_value("single-git", mixed=True)
+        mixed_path.write_text(json.dumps(mixed, indent=2) + "\n", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as out:
+            out_path = Path(out)
+            run_build(
+                out_path,
+                mixed_path,
+                adr_repository,
+                application_path=STRUCTURED_BASE / "application.json",
+                ruleset_path=STRUCTURED_BASE / "ruleset.json",
+                dataset_path=STRUCTURED_BASE / "dataset.json",
+            )
+            repo = out_path / "package" / "repository"
+            if not (repo / "ruleset.json").is_file() or not (repo / "dataset").is_dir():
+                raise SystemExit("FAIL: FS-003 mixed file/tree realization")
+            verify_provider_set(
+                out_path,
+                {
+                    "profile": "single-git",
+                    "storage": "git",
+                    "topology": "single",
+                    "location": "../package/repository",
+                    "components": {
+                        "ruleset": {"kind": "file", "path": "ruleset.json"},
+                        "dataset": {"kind": "tree", "path": "dataset"},
+                    },
+                },
+            )
+
+        provider_identities = []
+        for provider in PROVIDERS:
+            provider_path = configs / f"provider-{provider}.json"
+            provider_build = structured_build_value("single-git", [provider])
+            provider_path.write_text(
+                json.dumps(provider_build, indent=2) + "\n", encoding="utf-8"
+            )
+            with tempfile.TemporaryDirectory() as out:
+                out_path = Path(out)
+                run_build(
+                    out_path,
+                    provider_path,
+                    adr_repository,
+                    application_path=STRUCTURED_BASE / "application.json",
+                    ruleset_path=STRUCTURED_BASE / "ruleset.json",
+                    dataset_path=STRUCTURED_BASE / "dataset.json",
+                )
+                provider_identities.append(package_identity("single-git", out_path))
+        if provider_identities[0] != provider_identities[1]:
+            raise SystemExit("FAIL: FS-003 provider selection changed runtime/guidance")
+
+        bad_cases = []
+        bad = structured_build_value("single-git")
+        bad["runtime"]["dataset"]["representation"] = "unsupported"
+        bad_cases.append(("unsupported representation", bad))
+
+        bad = structured_build_value("single-git")
+        bad["runtime"]["dataset"]["files"] = {}
+        bad_cases.append(("empty mapping", bad))
+
+        bad = structured_build_value("single-git")
+        bad["runtime"]["dataset"]["files"] = {"bad.json": "/does-not-exist"}
+        bad_cases.append(("nonexistent selector", bad))
+
+        bad = structured_build_value("single-git")
+        bad["runtime"]["dataset"]["files"] = {
+            "state.json": "/state",
+            "tasks.json": "/state/tasks",
+            "instance.json": "/instance",
+            "history.json": "/history",
+        }
+        bad_cases.append(("overlapping selectors", bad))
+
+        bad = structured_build_value("single-git")
+        bad["runtime"]["dataset"]["files"] = {
+            "state.json": "/state",
+            "instance.json": "/instance",
+        }
+        bad_cases.append(("incomplete mapping", bad))
+
+        bad = structured_build_value("single-git")
+        bad["runtime"]["dataset"]["files"] = {
+            "../state.json": "/state",
+            "instance.json": "/instance",
+            "history.json": "/history",
+        }
+        bad_cases.append(("path traversal", bad))
+
+        for label, build_value in bad_cases:
+            expect_build_failure(
+                "FS-003 " + label,
+                adr_repository,
+                application=read_json(STRUCTURED_BASE / "application.json"),
+                ruleset=rules,
+                dataset=dataset,
+                build=build_value,
+            )
+
+    for path, digest in before.items():
+        if sha(path) != digest:
+            raise SystemExit(f"FAIL: FS-003 source mutated {path.relative_to(ROOT)}")
+
 TASKS = {
     "profile-contracts": task_profile_contracts,
     "fs001-build": task_fs001_build,
@@ -589,6 +993,7 @@ TASKS = {
     "fs002-file-packaging": task_fs002_file_packaging,
     "fs002-git-packaging": task_fs002_git_packaging,
     "fs002-provider-independence": task_fs002_provider_independence,
+    "fs003-git-structured": task_fs003_git_structured,
 }
 
 
@@ -606,6 +1011,10 @@ def required_tasks():
             if task not in seen:
                 seen.add(task)
                 required.append(task)
+    for task in data.get("build_tasks", []):
+        if task not in seen:
+            seen.add(task)
+            required.append(task)
     return required
 
 
