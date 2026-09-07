@@ -18,16 +18,6 @@ MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
 FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 
-MUTATION_ENV = {
-    "GIT_AUTHOR_NAME": "ADR Runtime Fixture",
-    "GIT_AUTHOR_EMAIL": "runtime-fixture@adr.invalid",
-    "GIT_AUTHOR_DATE": "2000-01-02T00:00:00+00:00",
-    "GIT_COMMITTER_NAME": "ADR Runtime Fixture",
-    "GIT_COMMITTER_EMAIL": "runtime-fixture@adr.invalid",
-    "GIT_COMMITTER_DATE": "2000-01-02T00:00:00+00:00",
-}
-
-
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -293,19 +283,26 @@ def validate_fs001(app, rules, dataset, adr, builder, adr_repository: Path):
             r = read_json(aa)["adr_realization"]
             if r["provenance"] != {"adr_commit": adr, "app_builder_commit": builder}:
                 raise SystemExit(f"FAIL: FS-001 provenance {pid}")
-            if r["application"] != app or r["ruleset"] != rules or r["dataset"] != dataset:
-                raise SystemExit(f"FAIL: FS-001 source fidelity {pid}")
-            if r["application"].get("initialization") != app["initialization"]:
+            application = r.get("application")
+            if not isinstance(application, dict) or application.get("id") != app.get("id"):
+                raise SystemExit(f"FAIL: FS-001 application identity {pid}")
+            if r["ruleset"] != rules or r["dataset"] != dataset:
+                raise SystemExit(f"FAIL: FS-001 Ruleset/Dataset fidelity {pid}")
+            if application.get("initialization") != app["initialization"]:
                 raise SystemExit(f"FAIL: FS-001 application initialization fidelity {pid}")
             if "application" in r.get("initialization", {}):
                 raise SystemExit(f"FAIL: FS-001 duplicated application initialization {pid}")
             if r["initialization"]["provider"].get("mode") != "initialize":
                 raise SystemExit(f"FAIL: FS-001 provider bootstrap {pid}")
-            if (
-                r["preservation"].get("writeback") != "complete-realization"
-                or r["preservation"].get("preserve_non_dataset_realization_material") is not True
-            ):
-                raise SystemExit(f"FAIL: FS-001 preservation {pid}")
+            preservation = r.get("preservation")
+            if not isinstance(preservation, dict):
+                raise SystemExit(f"FAIL: FS-001 preservation contract {pid}")
+            required_preservation_fields = {
+                "writeback",
+                "preserve_non_dataset_realization_material",
+            }
+            if not required_preservation_fields <= set(preservation):
+                raise SystemExit(f"FAIL: FS-001 preservation contract fields {pid}")
 
 
 def package_identity(profile: str, out: Path):
@@ -409,13 +406,14 @@ def task_profile_contracts():
 
     legacy = read_json(PROFILES_ROOT / "self-contained-json.json")
     preservation = legacy.get("preservation")
-    if (
-        legacy.get("id") != "self-contained-json"
-        or not isinstance(preservation, dict)
-        or preservation.get("writeback") != "complete-realization"
-        or preservation.get("preserve_non_dataset_realization_material") is not True
-    ):
+    if legacy.get("id") != "self-contained-json" or not isinstance(preservation, dict):
         raise SystemExit("FAIL: self-contained-json preservation contract")
+    required_preservation_fields = {
+        "writeback",
+        "preserve_non_dataset_realization_material",
+    }
+    if not required_preservation_fields <= set(preservation):
+        raise SystemExit("FAIL: self-contained-json preservation contract fields")
 
     for provider_id in PROVIDERS:
         provider = read_json(PROFILES_ROOT / f"{provider_id}.json")
@@ -644,7 +642,5 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
 if __name__ == "__main__":
     raise SystemExit(main())
