@@ -59,3 +59,9 @@ Canonical Validation shall include a required `repository-structure` task that m
 **Classification: S**
 
 Acceptance of FS-003 shall establish the generic structural ownership and placement needed to begin product Design and subsequent product lifecycle work under `product/` without requiring another framework Functional Set merely to establish that ownership or placement. This requirement does not assert that every framework-side lifecycle tool already discovers or processes product-owned lifecycle artifacts.
+
+### FS-003-NR-013 — Canonical Product Lifecycle Substrate
+
+**Classification: M**
+
+When the maintained `product/` ownership domain is present, its baseline direct-child roles `design/`, `specs/`, `scripts/`, and `validation/` shall all be present as directories; `planning/` and `src/` remain authorized but optional until required by product lifecycle work.

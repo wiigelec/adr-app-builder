@@ -57,6 +57,20 @@ The generic `product/` contract must remain usable for products unrelated to the
 
 Framework behavior may supply generic product-development surfaces and structural constraints, but product-specific meaning belongs to product Design and Planning rather than repository/framework Design.
 
+## Canonical Product Validation Substrate
+
+The generic product ownership domain includes a canonical Validation substrate so that a repository can begin product lifecycle work without inventing a second validation architecture.
+
+`product/design/` is the product-owned Design surface and `product/specs/` is the product-owned normative-specification surface.
+
+`product/scripts/validate` is the canonical product Validation entry point. It is an operational entry point for the product domain rather than an ownership location for substantive validation predicates or implementation.
+
+`product/validation/` owns the product Requirement Evaluation Manifest and the product-owned mechanical validation implementation, tasks, and fixtures required to evaluate product normative requirements.
+
+The product Requirement Evaluation Manifest records exact bindings from mechanically evaluated product normative requirements to product validation tasks. An empty manifest is valid when no applicable product normative requirement currently requires mechanical evaluation; emptiness does not remove the product Validation substrate or its ownership boundaries.
+
+Framework Validation shall mechanically enforce the reliably decidable structural validity and requirement-to-task traceability contract of this generic product Validation substrate. Such framework enforcement protects the lifecycle architecture and requirement-to-task traceability; it does not define product-specific normative predicates, evaluate product semantic meaning, execute product-owned validation predicates, or transfer product Validation ownership into `repo/`.
+
 ## Validation
 
 Closed structural boundaries are mechanically decidable where their permitted direct entries are explicit.
