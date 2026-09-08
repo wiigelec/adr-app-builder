@@ -642,7 +642,75 @@ def aggregate(results: list[bool]) -> bool:
     return all(results)
 
 
+def validate_dirty_product_candidate_regression() -> None:
+    if not PRODUCT_ENTRYPOINT.is_file() or not PRODUCT_VALIDATOR.is_file():
+        return
+
+    with tempfile.TemporaryDirectory(prefix="repo-spec-product-dirty-validation-") as tmp:
+        candidate = Path(tmp) / "candidate"
+        add = subprocess.run(
+            ["git", "worktree", "add", "--detach", str(candidate), "HEAD"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if add.returncode != 0:
+            fail(
+                "validation-gate could not create dirty product candidate fixture: "
+                + (add.stderr.strip() or add.stdout.strip())
+            )
+        try:
+            validator = candidate / "product" / "validation" / "validate_product.py"
+            if not validator.is_file():
+                fail("validation-gate dirty product candidate fixture lacks product validator")
+
+            validator.write_text(
+                validator.read_text(encoding="utf-8")
+                + "\n# validation-gate dirty-candidate regression fixture\n",
+                encoding="utf-8",
+            )
+
+            dirty = subprocess.run(
+                ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+                cwd=candidate,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            ).stdout.splitlines()
+            expected = [" M product/validation/validate_product.py"]
+            if dirty != expected:
+                fail(
+                    "validation-gate dirty product candidate fixture has unexpected state: "
+                    + repr(dirty)
+                )
+
+            validation = subprocess.run(
+                [str(candidate / "product" / "scripts" / "validate")],
+                cwd=candidate,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if validation.returncode != 0:
+                fail(
+                    "canonical product Validation rejected a valid uncommitted candidate: "
+                    + (validation.stderr.strip() or validation.stdout.strip())
+                )
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(candidate)],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+
 def task_validation_gate() -> None:
+    validate_dirty_product_candidate_regression()
     if set(TASKS) != set(TASK_FUNCTIONS):
         fail("registered Validation task set is incomplete")
     if select_tasks([]) != list(TASKS):
