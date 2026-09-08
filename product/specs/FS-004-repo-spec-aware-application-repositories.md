@@ -94,19 +94,19 @@ Generated repo-spec source lineage shall identify the actual supplying repositor
 
 **Classification: S**
 
-The generated `split-git` repository pair shall preserve enough stable realization identity or traceability to determine which exact Ruleset content App Builder paired with the application instance while Ruleset and Dataset repositories evolve independently, without replacing application-owned semantics that determine applicable Ruleset authority.
+The generated `split-git` repository pair shall preserve enough stable realization identity or traceability to determine which exact Ruleset realization is bound as the applicable Ruleset authority for the application instance while Ruleset and Dataset repositories evolve independently, without making the binding metadata itself semantic authority.
 
 ### FS-004-NR-014 — Binding Representation Non-Prescription
 
 **Classification: S**
 
-The FS-004 `binding.json` mechanism is an App Builder realization-traceability choice and shall not be represented as a universal ADR binding encoding, versioning model, repository technology, application-owned binding rule, or application-specific semantic identifier.
+The FS-004 `binding.json` mechanism is an App Builder realization-binding choice and shall not be represented as a universal ADR binding encoding, versioning model, repository technology, application-owned binding rule, or application-specific semantic identifier.
 
 ### FS-004-NR-015 — Binding Authority Separation
 
 **Classification: S**
 
-FS-004 realization binding information shall not become an independent semantic authority, shall not transfer committed-state authority away from the Dataset, and shall not override, reinterpret, normalize, or replace application-owned Ruleset-binding semantics or binding-related source fields.
+FS-004 realization binding information shall determinately identify which Ruleset realization is bound to the application instance while remaining non-authoritative metadata: it shall not create Ruleset meaning, transfer committed-state authority away from the Dataset, or override, reinterpret, normalize, or replace application-owned Ruleset semantics or binding-related source fields.
 
 ### FS-004-NR-016 — Initialization Determinacy
 
@@ -114,7 +114,7 @@ FS-004 realization binding information shall not become an independent semantic 
 
 **State: Inactive**
 
-A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, application-owned semantics for determining applicable Ruleset authority, authoritative Dataset state location, and App Builder realization traceability for the paired Ruleset content without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
+A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, the exact Ruleset realization bound as applicable authority, the application-owned semantics governing that Ruleset's meaning and compatibility behavior, authoritative Dataset state location, and required binding information without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
 
 ### FS-004-NR-017 — Dataset Repository Operational Role
 
@@ -180,7 +180,7 @@ The generated Ruleset repository shall retain deterministic source lineage conta
 
 **State: Inactive**
 
-Repo-spec source lineage and FS-004 realization binding shall be mechanically distinguishable from ADR provenance, App Builder provenance, ordinary Git history, runtime Ruleset identity, Dataset committed-state values, and application-owned binding-related fields or semantics.
+Repo-spec source lineage and FS-004 realization binding shall be mechanically distinguishable from ADR provenance, App Builder provenance, ordinary Git history, Dataset committed-state values, and application-owned binding-related fields or semantics, while the binding remains sufficient to identify the bound runtime Ruleset realization.
 
 ### FS-004-NR-026 — Governance Artifact Traceability
 
