@@ -10,7 +10,10 @@ depends_on:
 
 ## Purpose
 
-ADR App Builder shall support optional repo-spec-aware realization of generated Git repositories so sufficiently complex ADR-derived applications can carry an independently usable repository-development lifecycle for their Ruleset and other application-rule development concerns.
+ADR App Builder shall realize `split-git` applications as two repositories with intentionally different lifecycle roles:
+
+- the Ruleset repository is always managed by the repo-spec repository-development lifecycle; and
+- the Dataset repository remains an independently evolving application-instance data repository and is not managed by the repo-spec product-development lifecycle.
 
 Repo-spec integration is a repository-development concern. It does not extend ADR semantics, does not add another ADR semantic component, and does not make repo-spec authority over application-owned Ruleset or Dataset meaning.
 
@@ -44,67 +47,81 @@ For architectural reasoning, an ADR-derived application may be understood approx
 
 This comparison is explanatory rather than a required runtime architecture.
 
-## Repository Development Lifecycle as a Ruleset Realization Choice
+## Packaging and Lifecycle Eligibility
 
-Repo-spec-aware realization provides a development lifecycle for application-rule development.
+Repo-spec product-development lifecycle management is defined only for the Ruleset repository produced by `split-git`.
 
-For a Ruleset-bearing generated Git repository, repo-spec may manage development of the Ruleset product itself through Design → Planning → Build → Validation → Semantic Review → Acceptance.
+Under this Design:
 
-The accepted runtime Ruleset realization may remain at the runtime location established by the selected App Builder packaging and runtime-representation choices. Repo-spec lifecycle ownership does not require runtime Ruleset files to be relocated beneath `product/`.
+- `single-file` does not use repo-spec lifecycle management;
+- `split-files` does not use repo-spec lifecycle management;
+- `single-git` does not use repo-spec lifecycle management;
+- `split-git` always installs repo-spec lifecycle management in the Ruleset repository; and
+- the `split-git` Dataset repository does not receive repo-spec Design, Planning, Build, Semantic Review, or Acceptance lifecycle management.
+
+There is no independent repo-spec lifecycle selector for `split-git`.
+
+Selecting `split-git` selects the lifecycle contract defined here.
+
+Provider profiles shall not enable, disable, reinterpret, or modify this lifecycle behavior.
+
+## Split-Git Ruleset Repository
+
+The Ruleset repository produced by `split-git` is the application-rule product repository.
+
+It shall carry the reusable repo-spec framework and shall support development of the Ruleset product through:
+
+Design → Planning → Build → Validation → Semantic Review → Acceptance.
+
+The accepted runtime Ruleset realization may remain at the runtime location established by App Builder's runtime-representation choices. Repo-spec lifecycle ownership does not require runtime Ruleset files to be relocated beneath `product/`.
 
 The repo-spec `product/` domain owns development artifacts and implementation work for the Ruleset/application-rule product. Runtime Ruleset material remains the accepted operational realization governed by that lifecycle.
 
-Repository-development lifecycle selection remains independent from packaging topology, runtime component representation, and provider adaptation. Selecting repo-spec-aware lifecycle behavior shall not require a new packaging topology, and provider profiles shall not modify the lifecycle choice.
+Ruleset product development may include application rules governing Dataset structure, validation, compatibility, and migration.
 
-## Dataset Repository Governance
+## Split-Git Dataset Repository
 
-A Dataset-only repository is not, merely by containing application data, a repo-spec product-development repository.
+The Dataset repository produced by `split-git` is an independently evolving application-instance data repository.
+
+It is not a repo-spec product-development repository.
 
 Its ordinary lifecycle is application operation over committed data rather than Design → Planning → Build development of application rules.
 
-A Dataset repository may contain or consume Ruleset-defined mechanical validation, compatibility, or migration mechanisms needed to operate safely on its data. Such mechanisms remain Ruleset-owned application rules or implementations of those rules even when installed into, invoked from, or physically stored within a Dataset repository.
+The Dataset repository may contain or consume Ruleset-defined mechanical validation, compatibility, or migration mechanisms needed to operate safely on its data. Such mechanisms remain Ruleset-owned application rules or implementations of those rules even when installed into, invoked from, or physically stored within the Dataset repository.
 
-Installing a Ruleset-defined validator or migration mechanism into a Dataset repository does not create independent Dataset-side semantic authority and does not by itself install a repo-spec development lifecycle.
+Installing a Ruleset-defined validator or migration mechanism into the Dataset repository does not create independent Dataset-side semantic authority and does not install a repo-spec product-development lifecycle.
 
 Dataset persistence remains governed by the applicable Ruleset semantics. An application may require validation before persistence or may require compatibility, migration, refusal, recovery, or author-governed resolution when the applicable Ruleset changes.
 
-FS-004 does not define a separate repo-spec product-development lifecycle for Dataset-only repositories.
+Repo-spec lifecycle material from the Ruleset repository shall not leak into the Dataset repository merely because both repositories were produced by the same `split-git` build.
 
-## Split-Git Roles
+## Single-Git Boundary
 
-For split-Git packaging, the Ruleset and Dataset repositories have different lifecycle roles.
+A `single-git` repository may continue to contain both runtime Ruleset and runtime Dataset material while preserving their semantic ownership boundaries.
 
-The Ruleset repository may be repo-spec-aware because it contains the application rules being developed and accepted. The Dataset repository remains an independently evolving application-instance data repository.
+`single-git` is not eligible for repo-spec lifecycle management under this Design.
 
-Ruleset-owned validation, compatibility, or migration mechanisms may be installed or made available to the Dataset repository when required by application-owned semantics, but those mechanisms shall not cause the Dataset repository to be represented as though its instance data were a repo-spec-developed product.
+This restriction avoids conflating Ruleset product-development history with independently evolving Dataset runtime history inside one Git repository.
 
-The lifecycle material selected for the Ruleset repository shall not silently impose repo-spec Design, Planning, or product-development authority on the Dataset repository.
-
-## Single-Git Roles
-
-A single-Git repository may contain both runtime Ruleset and runtime Dataset material while preserving their semantic roles.
-
-When repo-spec-aware lifecycle is selected for a single-Git repository, the lifecycle governs development of the Ruleset/application-rule product. The Dataset material in that same repository remains committed application-instance data governed by the accepted Ruleset rather than becoming product-development state merely because both roles share one Git worktree.
-
-Repository layout and shared Git persistence do not collapse Ruleset and Dataset ownership.
+The absence of repo-spec lifecycle management does not weaken ADR semantic separation between Ruleset and Dataset in `single-git`.
 
 ## Repo-Spec Source
 
-A repo-spec-aware build shall consume one exact accepted repo-spec framework revision for each repo-spec framework state it installs.
+Every `split-git` build shall consume one exact accepted repo-spec framework revision for installation into the Ruleset repository.
 
 The supplying repo-spec state shall be identified truthfully and exactly enough to determine the framework revision used for construction.
 
-App Builder shall not silently substitute an unrelated repo-spec revision while representing the generated repository as having been constructed from the selected source.
+App Builder shall not silently substitute an unrelated repo-spec revision while representing the generated Ruleset repository as having been constructed from the selected source.
 
-The exact source-selection and resolution mechanism is a Planning and Build concern. Design does not require a particular remote, local checkout, archive format, or transport when equivalent source identity can be established correctly.
+The exact source-selection, resolution, and mechanically sufficient accepted-state determination mechanism is a Planning and Build concern. Design does not require a particular remote, local checkout, archive format, or transport when equivalent source identity can be established correctly.
 
 ## Installed Framework Meaning
 
-Repo-spec-aware realization installs the reusable repository-development framework, not the repo-spec initializer product's own product semantics.
+The `split-git` Ruleset repository installs the reusable repository-development framework, not the repo-spec initializer product's own product semantics.
 
-Framework-owned repository state shall remain distinguishable from repository-specific Ruleset/application-rule development state, accepted runtime Ruleset realization, committed Dataset data, App Builder construction provenance, and `init-config/` construction inputs.
+Framework-owned repository state shall remain distinguishable from repository-specific Ruleset/application-rule development state, accepted runtime Ruleset realization, App Builder construction provenance, and `init-config/` construction inputs.
 
-A repo-spec-aware generated repository shall preserve repo-spec's ownership distinction between reusable framework material and repository-specific product material. For an ADR application repository governed by this Design, repository-specific product material concerns development of application rules and their realizations.
+The generated Ruleset repository shall preserve repo-spec's ownership distinction between reusable framework material and repository-specific product material. Repository-specific product material concerns development of application rules and their realizations.
 
 App Builder-generated bootstrap material shall not masquerade as accepted future Product Design merely because App Builder constructed the initial repository.
 
@@ -112,13 +129,18 @@ App Builder-generated bootstrap material shall not masquerade as accepted future
 
 Runtime Ruleset and Dataset components retain the semantic ownership established by ADR, DP-100, and DP-101.
 
-Installed repo-spec framework material is development-lifecycle material.
+Installed repo-spec framework material exists only in the `split-git` Ruleset repository and is development-lifecycle material.
 
-Generated repository guidance shall distinguish runtime Ruleset material as accepted operational application-rule realization, runtime Dataset material as committed application-instance data, repo-spec framework material as lifecycle infrastructure, repository-specific product material as development of the Ruleset/application-rule product, and App Builder provenance plus `init-config/` as construction lineage rather than runtime or development semantic authority.
+Generated repository guidance shall distinguish:
 
-Ruleset-defined Dataset validation or migration mechanisms remain rules or implementations of rules even when executed against Dataset data.
+- runtime Ruleset material as accepted operational application-rule realization;
+- runtime Dataset material as committed application-instance data;
+- repo-spec framework material as Ruleset repository lifecycle infrastructure;
+- repository-specific product material as development of the Ruleset/application-rule product;
+- Ruleset-defined Dataset validation or migration mechanisms as rules or implementations of rules even when executed against Dataset data; and
+- App Builder provenance plus `init-config/` as construction lineage rather than runtime or development semantic authority.
 
-Ordinary application operation shall not require a repo-spec development action merely because repo-spec is installed. Ordinary Dataset state transition and persistence shall not be reclassified as Ruleset product development merely because the Dataset is governed by a repo-spec-developed Ruleset.
+Ordinary Dataset state transition and persistence shall not be reclassified as Ruleset product development.
 
 ## Ruleset Evolution and Dataset Compatibility
 
@@ -130,31 +152,43 @@ When that occurs, the application Ruleset owns the compatibility, migration, ref
 
 Applying those rules may produce modified Dataset data. The accepted result remains Dataset-owned committed application state.
 
-Ruleset evolution shall not silently reinterpret incompatible committed Dataset data merely because a newer Ruleset exists. App Builder does not invent application-specific compatibility or migration meaning.
+Ruleset evolution shall not silently reinterpret incompatible committed Dataset data merely because a newer Ruleset exists.
+
+App Builder does not invent application-specific compatibility or migration meaning.
 
 ## Ruleset-Defined Dataset Validation and Migration
 
 A complex Ruleset product may define or realize mechanical mechanisms that operate on Dataset data, including structural or schema validation, cross-record invariant validation, dependency or stale-state validation, compatibility evaluation, deterministic migrations, and migration preconditions or postconditions.
 
-These mechanisms are developed and accepted through the Ruleset repository's lifecycle when they carry application-rule meaning or mechanically enforce accepted application rules.
+These mechanisms are developed and accepted through the Ruleset repository's repo-spec lifecycle when they carry application-rule meaning or mechanically enforce accepted application rules.
 
-A validator is not an independent semantic authority. A migration implementation is not an independent semantic authority. If validator or migration behavior conflicts with accepted Ruleset meaning or normative requirements, that is a Ruleset product defect.
+A validator is not an independent semantic authority.
 
-A Dataset repository may receive installed copies, wrappers, or entry points for such mechanisms when a self-contained realization requires them. Installation location does not alter their semantic ownership.
+A migration implementation is not an independent semantic authority.
+
+If validator or migration behavior conflicts with accepted Ruleset meaning or normative requirements, that is a Ruleset product defect.
+
+The `split-git` Dataset repository may receive installed copies, wrappers, or entry points for such mechanisms when a self-contained realization requires them.
+
+Installation location does not alter their semantic ownership.
 
 ## Post-Construction Independence
 
-After successful construction, a repo-spec-aware repository shall be independently usable for its installed Design → Planning → Build → Validation → Semantic Review → Acceptance lifecycle without requiring the App Builder checkout or the supplying repo-spec working tree to remain available.
+After successful construction, the `split-git` Ruleset repository shall be independently usable for its installed Design → Planning → Build → Validation → Semantic Review → Acceptance lifecycle without requiring the App Builder checkout or the supplying repo-spec working tree to remain available.
 
-App Builder does not become the repository's runtime service, save service, commit service, Planning service, Validation service, migration service, or upgrade service after construction.
+The paired Dataset repository shall likewise remain independently usable as application-instance persistence according to the generated realization and applicable Ruleset binding.
+
+App Builder does not become the runtime service, save service, commit service, Planning service, Validation service, migration service, or upgrade service after construction.
 
 A later App Builder invocation is a separate realization operation.
 
-A later repo-spec framework upgrade is a repository-development operation governed by the installed repository lifecycle and applicable repo-spec upgrade semantics, not an implicit App Builder runtime action.
+A later repo-spec framework upgrade is a Ruleset-repository development operation governed by the installed repository lifecycle and applicable repo-spec upgrade semantics.
+
+Ruleset-to-Dataset compatibility or migration remains application-owned behavior even when tooling realizing that behavior was initially installed by App Builder.
 
 ## Product Readiness
 
-A repo-spec-aware Ruleset-bearing generated repository shall be structurally ready for repository-specific Product Design and later lifecycle work on the Ruleset/application-rule product.
+The `split-git` Ruleset repository shall be structurally ready for repository-specific Product Design and later lifecycle work on the Ruleset/application-rule product.
 
 The installed lifecycle may establish generic product-development surfaces required by repo-spec, including Design, normative specification, implementation, and product Validation ownership surfaces.
 
@@ -164,17 +198,21 @@ App Builder shall not invent application-specific normative requirements, Datase
 
 Application-specific engineering begins when repository-specific Design establishes that meaning and Planning derives a bounded Functional Set from it.
 
-Dataset-only repositories do not receive those product-development surfaces merely for symmetry.
+The paired Dataset repository does not receive those product-development surfaces.
 
 ## Application-Specific Schemas and Mechanical Enforcement
 
-Repo-spec-aware Ruleset development is intended to provide a correct ownership location and lifecycle for application-specific engineering concerns that exceed ordinary unvalidated prose.
+Repo-spec-managed Ruleset development provides the ownership location and lifecycle for application-specific engineering concerns that exceed ordinary unvalidated prose.
 
 Examples include application-defined Dataset schemas, artifact relationship rules, lifecycle state definitions, provenance rules, deterministic invariants, stale-state semantics, compatibility rules, migration semantics, validation tooling, and other mechanical enforcement.
 
-These concerns are Ruleset-side rules or realizations of Ruleset-side rules when they define or enforce what Dataset data means, may contain, or may become. Actual application-instance records and values remain Dataset data.
+These concerns are Ruleset-side rules or realizations of Ruleset-side rules when they define or enforce what Dataset data means, may contain, or may become.
 
-Mechanically decidable application requirements may be bound to Ruleset product Validation according to the installed repo-spec lifecycle. The same accepted validator logic may also be executed against a concrete Dataset instance as an application-state persistence or compatibility check.
+Actual application-instance records and values remain Dataset data.
+
+Mechanically decidable application requirements may be bound to Ruleset product Validation according to the installed repo-spec lifecycle.
+
+The same accepted validator logic may also be executed against a concrete Dataset instance as an application-state persistence or compatibility check.
 
 Development Validation and Dataset-instance validation have different subjects even when they reuse the same implementation.
 
@@ -182,9 +220,9 @@ Semantic correctness remains subject to Semantic Review and Acceptance; passing 
 
 ## Deterministic Construction
 
-Repo-spec-aware lifecycle selection, Ruleset-owned Dataset-governance artifact selection, and the exact resolved repo-spec framework source are build inputs when applicable.
+For `split-git`, the exact resolved repo-spec framework source and any Ruleset-owned Dataset-governance artifacts selected for Dataset installation are build inputs.
 
-For equivalent resolved inputs, App Builder shall deterministically construct the same generated repository tree and package-owned file content, subject to the existing DP-100 and DP-101 treatment of Git construction timestamps and commit identity.
+For equivalent resolved inputs, App Builder shall deterministically construct the same generated repository trees and package-owned file content, subject to the existing DP-100 and DP-101 treatment of Git construction timestamps and commit identity.
 
 Repo-spec installation and Ruleset-owned Dataset-governance installation shall not introduce unexplained dependency on incidental local repository state.
 
@@ -192,7 +230,7 @@ Generated Git commit identity remains storage provenance rather than application
 
 ## Provenance and Source Relationship
 
-A repo-spec-aware generated repository shall retain sufficient exact source information to identify the repo-spec framework revision installed during construction.
+The generated `split-git` Ruleset repository shall retain sufficient exact source information to identify the repo-spec framework revision installed during construction.
 
 That information is lineage and an upgrade anchor.
 
@@ -200,7 +238,7 @@ It does not make the supplying repo-spec repository a runtime authority, import 
 
 Existing ADR and App Builder provenance requirements remain unchanged.
 
-When a generated Dataset repository receives Ruleset-owned validation, compatibility, or migration artifacts, the realization shall preserve enough Ruleset identity or traceability to determine the governing source of those artifacts when that distinction matters.
+When the generated Dataset repository receives Ruleset-owned validation, compatibility, or migration artifacts, the realization shall preserve enough Ruleset identity or traceability to determine the governing source of those artifacts when that distinction matters.
 
 The installed repo-spec source relationship shall remain distinguishable from ADR provenance, App Builder provenance, runtime Ruleset identity, Dataset state, Ruleset-to-Dataset binding, and later repository history.
 
@@ -208,16 +246,16 @@ The installed repo-spec source relationship shall remain distinguishable from AD
 
 App Builder Validation shall mechanically verify realization obligations that are mechanically decidable.
 
-At minimum, Validation shall be capable of establishing that:
+At minimum, Validation shall establish that:
 
-- repo-spec lifecycle selection applies to the intended Ruleset-bearing repository role without being conflated with packaging or provider selection;
-- the installed framework corresponds to the exact resolved accepted repo-spec source selected for construction;
+- `split-git` always installs the repo-spec lifecycle into the Ruleset repository;
+- `split-git` does not install repo-spec product-development lifecycle material into the Dataset repository;
+- `single-file`, `split-files`, and `single-git` do not install repo-spec lifecycle material;
+- the Ruleset repository's installed framework corresponds to the exact resolved accepted repo-spec source selected for construction;
 - framework-owned, product-owned, runtime Ruleset, runtime Dataset, `init-config/`, and provenance roles remain distinguishable;
-- the generated repo-spec-aware Ruleset-bearing repository provides the canonical repo-spec Validation composition required by the installed framework;
-- the generated Ruleset-bearing repository has no ordinary post-construction dependency on App Builder or the supplying repo-spec checkout;
-- baseline Git-backed output remains available when repo-spec-aware lifecycle is not selected;
-- split-Git repo-spec lifecycle material does not leak into the Dataset peer repository;
-- Ruleset-owned Dataset validation or migration artifacts, when selected for Dataset installation, remain traceable to their applicable Ruleset source and do not introduce Dataset-owned semantic authority;
+- the generated Ruleset repository provides the canonical repo-spec Validation composition required by the installed framework;
+- the generated Ruleset repository has no ordinary post-construction dependency on App Builder or the supplying repo-spec checkout;
+- Ruleset-owned Dataset validation or migration artifacts installed into the Dataset repository remain traceable to their applicable Ruleset source and do not introduce Dataset-owned semantic authority; and
 - equivalent resolved build inputs preserve required deterministic generated-tree correspondence.
 
 Validation shall evaluate generated candidate repositories rather than treating successful file generation as sufficient evidence.
@@ -228,7 +266,7 @@ Mechanical Validation does not establish that future repository-specific Product
 
 ## Upgrade Boundary
 
-This Design establishes source identity and structural readiness for later repo-spec framework upgrade work.
+This Design establishes source identity and structural readiness for later repo-spec framework upgrade work in the `split-git` Ruleset repository.
 
 It also establishes the architectural boundary under which Ruleset evolution may require application-owned compatibility evaluation or migration of Dataset data.
 
@@ -236,32 +274,36 @@ It does not define a universal App Builder-driven upgrade engine for already gen
 
 Application-specific compatibility and migration semantics belong to the Ruleset product and may later be designed, planned, implemented, validated, reviewed, and accepted through its installed repo-spec lifecycle.
 
-A generated Dataset may consume those accepted mechanisms without itself becoming a repo-spec-developed product.
+The paired Dataset repository may consume those accepted mechanisms without itself becoming a repo-spec-developed product.
 
 ## Compatibility
 
-Existing App Builder builds that do not select repo-spec-aware lifecycle behavior remain valid.
+`single-file`, `split-files`, and `single-git` remain valid App Builder packaging profiles and retain their existing lifecycle behavior.
 
-FS-001, FS-002, and FS-003 realization semantics remain applicable.
+FS-001, FS-002, and FS-003 realization semantics remain applicable except where FS-004 deliberately strengthens the `split-git` Ruleset repository contract.
 
-Repo-spec awareness extends Git-backed Ruleset/application-rule development without redefining file-backed packaging, provider semantics, runtime Ruleset meaning, Dataset committed-state authority, active working-state behavior, or ordinary save semantics.
+Under FS-004, every newly generated `split-git` realization contains a repo-spec-managed Ruleset repository paired with a non-repo-spec Dataset repository.
 
-This Design refines the earlier FS-004 concept that split-Git repositories could symmetrically receive the same repository-development lifecycle. Ruleset and Dataset repositories instead retain distinct lifecycle roles consistent with their ADR ownership: Ruleset owns rules; Dataset owns data.
+This is a deliberate `split-git` behavior change rather than an optional lifecycle extension.
+
+The change does not redefine provider semantics, runtime Ruleset meaning, Dataset committed-state authority, active working-state behavior, or ordinary Dataset save semantics.
 
 ## Design Boundary
 
 This Design defines:
 
 - the ADR ownership rule that Ruleset owns rules and Dataset owns committed application-instance data;
-- optional repo-spec-aware development lifecycle for Ruleset-bearing generated Git repositories;
+- `split-git` as the only packaging profile using repo-spec lifecycle management;
+- mandatory repo-spec lifecycle management for every `split-git` Ruleset repository;
+- no independent lifecycle-selection option for `split-git`;
+- no repo-spec lifecycle management for `single-file`, `split-files`, or `single-git`;
+- the `split-git` Dataset repository as application-state persistence rather than a repo-spec product-development repository;
 - Ruleset product development as including application rules governing Dataset structure, validation, compatibility, and migration;
 - preservation of runtime Ruleset paths as accepted operational realization without requiring relocation beneath `product/`;
-- Dataset repositories as application-state repositories rather than symmetric repo-spec product-development repositories;
 - Ruleset-defined validation, compatibility, or migration mechanisms as remaining Ruleset-owned when installed or executed against Dataset data;
 - governed Dataset compatibility transition as a valid consequence of Ruleset evolution without transfer of Dataset authority;
-- separation of repository-development material from runtime application material;
 - post-construction independence from App Builder and the supplying repo-spec checkout;
-- exact accepted repo-spec source identity;
+- exact accepted repo-spec source identity; and
 - provenance and deterministic-construction expectations for installed framework and Ruleset-owned Dataset-governance artifacts.
 
 This Design does not define:
@@ -277,6 +319,6 @@ This Design does not define:
 - automatic repo-spec upgrades after construction;
 - runtime application save or commit services;
 - provider-specific repo-spec semantics;
-- mandatory repo-spec installation for all ADR applications;
-- repo-spec Design/Planning lifecycle installation for Dataset-only repositories;
-- a requirement that Ruleset-owned Dataset validation or migration tooling use one universal physical layout or execution model.
+- repo-spec lifecycle management for `single-file`, `split-files`, or `single-git`;
+- repo-spec Design/Planning lifecycle installation for Dataset repositories; or
+- a universal physical layout or execution model for Ruleset-owned Dataset validation or migration tooling.
