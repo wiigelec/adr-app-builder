@@ -1,0 +1,229 @@
+# FS-004 — Repo-Spec-Aware Application Repositories
+
+### FS-004-NR-001 — Functional Set Scope
+
+**Classification: S**
+
+FS-004 shall extend the accepted `split-git` realization with repo-spec-aware Ruleset repository lifecycle management while preserving inherited ADR application-instance, Ruleset, Dataset, binding, compatibility, transition, and initialization semantics without adding a new ADR semantic role.
+
+### FS-004-NR-002 — Lifecycle Profile Boundary
+
+**Classification: B**
+
+**State: Inactive**
+
+FS-004 repo-spec lifecycle behavior shall apply only to `split-git`. `single-file`, `split-files`, and `single-git` shall retain their accepted lifecycle behavior and shall not receive FS-004 repo-spec lifecycle installation.
+
+### FS-004-NR-003 — Mandatory Split-Git Ruleset Lifecycle
+
+**Classification: M**
+
+**State: Inactive**
+
+Every newly generated `split-git` Ruleset repository shall contain the selected accepted repo-spec framework and shall support the installed Design → Planning → Build → Validation → Semantic Review → Acceptance repository-development lifecycle.
+
+### FS-004-NR-004 — Dataset Lifecycle Exclusion
+
+**Classification: M**
+
+**State: Inactive**
+
+The paired `split-git` Dataset repository shall not contain repo-spec product-development lifecycle installation or repository-development ownership surfaces.
+
+### FS-004-NR-005 — No Independent Lifecycle Selector
+
+**Classification: M**
+
+**State: Inactive**
+
+`split-git` shall have no independent configuration option that disables, selects, or substitutes the FS-004 repo-spec lifecycle contract.
+
+### FS-004-NR-006 — Provider Lifecycle Independence
+
+**Classification: M**
+
+**State: Inactive**
+
+Changing only provider selection shall not enable, disable, reinterpret, or alter FS-004 lifecycle eligibility or installed repo-spec framework content.
+
+### FS-004-NR-007 — Ruleset Product Repository Role
+
+**Classification: S**
+
+The `split-git` Ruleset repository is the repository-development home for the application-rule product; repo-spec lifecycle management shall not make repo-spec an authority over application-owned Ruleset meaning.
+
+### FS-004-NR-008 — Runtime Ruleset Location Preservation
+
+**Classification: M**
+
+**State: Inactive**
+
+Installing repo-spec lifecycle material shall preserve the accepted FS-003 runtime Ruleset realization at its runtime location and shall not require runtime Ruleset material to move beneath `product/`.
+
+### FS-004-NR-009 — Framework and Product-State Separation
+
+**Classification: M**
+
+**State: Inactive**
+
+Generated Ruleset repositories shall keep reusable repo-spec framework state mechanically distinguishable from repository-specific product-development state, accepted runtime Ruleset material, construction provenance, and `init-config/`.
+
+### FS-004-NR-010 — Bootstrap Non-Acceptance
+
+**Classification: S**
+
+Generic App Builder-generated lifecycle or guidance material shall not become accepted repository-specific Product Design, normative requirements, or application semantics merely because it was generated during construction.
+
+### FS-004-NR-011 — Exact Accepted Repo-Spec Source
+
+**Classification: M**
+
+**State: Inactive**
+
+Each `split-git` build shall resolve one supplying repo-spec repository `refs/heads/main` to one exact commit and install framework material only from that exact accepted commit.
+
+### FS-004-NR-012 — Repo-Spec Source Truthfulness
+
+**Classification: M**
+
+**State: Inactive**
+
+Generated repo-spec source lineage shall identify the actual supplying repository and resolved commit used for installation and shall not silently substitute another repository or revision.
+
+### FS-004-NR-013 — Ruleset/Dataset Binding Determinacy
+
+**Classification: S**
+
+The generated `split-git` repository pair shall preserve enough stable identity or traceability to determine the applicable Ruleset authority for consequential Dataset operations while Ruleset and Dataset repositories evolve independently.
+
+### FS-004-NR-014 — Binding Representation Non-Prescription
+
+**Classification: S**
+
+The FS-004 binding mechanism is an App Builder realization choice and shall not be represented as a universal ADR binding encoding, versioning model, repository technology, or application-specific semantic identifier.
+
+### FS-004-NR-015 — Binding Authority Separation
+
+**Classification: S**
+
+Ruleset/Dataset binding information shall not become an independent semantic authority and shall not transfer committed-state authority away from the Dataset.
+
+### FS-004-NR-016 — Initialization Determinacy
+
+**Classification: M**
+
+**State: Inactive**
+
+A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, applicable Ruleset authority, authoritative Dataset state location, and required binding information without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
+
+### FS-004-NR-017 — Dataset Repository Operational Role
+
+**Classification: S**
+
+The `split-git` Dataset repository shall remain independently evolving application-instance persistence rather than a repo-spec product-development repository.
+
+### FS-004-NR-018 — Dataset-Side Governance Ownership
+
+**Classification: S**
+
+Ruleset-owned validation, compatibility, migration, refusal, recovery, or related mechanisms remain Ruleset-owned when installed into or invoked from the Dataset repository; physical location shall not redefine semantic ownership.
+
+### FS-004-NR-019 — Dataset Lifecycle Non-Transfer
+
+**Classification: M**
+
+**State: Inactive**
+
+Dataset-side Ruleset-governance tooling, when present, shall not install, imply, or require repo-spec product-development lifecycle ownership in the Dataset repository.
+
+### FS-004-NR-020 — Generic Product Readiness
+
+**Classification: M**
+
+**State: Inactive**
+
+The generated Ruleset repository shall contain the reusable repo-spec framework, root Validation composition, CI Validation delegation, and generated lifecycle guidance required to begin later repository-specific Ruleset product development without requiring repository-specific Product Design to exist at construction time.
+
+### FS-004-NR-021 — No Invented Application Semantics
+
+**Classification: S**
+
+FS-004 construction shall not invent application-specific normative requirements, Dataset schemas, invariants, state vocabularies, validation semantics, compatibility semantics, migration semantics, or implementation merely to populate lifecycle surfaces.
+
+### FS-004-NR-022 — Ruleset Repository Independence
+
+**Classification: M**
+
+**State: Inactive**
+
+After construction, the Ruleset repository shall execute its installed canonical repo-spec Validation and support ordinary repository-development lifecycle work without requiring the App Builder checkout or supplying repo-spec working tree.
+
+### FS-004-NR-023 — Dataset Repository Independence
+
+**Classification: M**
+
+**State: Inactive**
+
+After construction, the Dataset repository shall remain usable as application-instance persistence according to the generated realization and applicable Ruleset binding without requiring App Builder to act as runtime, save, commit, or lookup service.
+
+### FS-004-NR-024 — Repo-Spec Source Provenance
+
+**Classification: M**
+
+**State: Inactive**
+
+The generated Ruleset repository shall retain deterministic source lineage containing the normalized supplying repo-spec repository identity and exact resolved repo-spec commit installed during construction.
+
+### FS-004-NR-025 — Provenance and Binding Distinction
+
+**Classification: M**
+
+**State: Inactive**
+
+Repo-spec source lineage and Ruleset/Dataset binding shall be mechanically distinguishable from ADR provenance, App Builder provenance, ordinary Git history, runtime Ruleset identity, and Dataset committed-state values.
+
+### FS-004-NR-026 — Governance Artifact Traceability
+
+**Classification: M**
+
+**State: Inactive**
+
+When FS-004 installs Ruleset-owned governance artifacts into the Dataset repository, the generated realization shall preserve enough Ruleset identity or traceability to determine their governing Ruleset source where consequential.
+
+### FS-004-NR-027 — Canonical Generated-Repository Validation
+
+**Classification: M**
+
+**State: Inactive**
+
+Every generated `split-git` Ruleset repository shall contain executable root `scripts/validate` composition and the installed repo-spec framework Validation surface required for canonical repository-wide mechanical Validation.
+
+### FS-004-NR-028 — Generated Candidate Validation
+
+**Classification: M**
+
+**State: Inactive**
+
+App Builder FS-004 Validation shall construct and evaluate generated candidate repository pairs and shall not treat successful file generation alone as evidence of conformance.
+
+### FS-004-NR-029 — Deterministic Generated Trees
+
+**Classification: M**
+
+**State: Inactive**
+
+Equivalent resolved FS-004 build inputs, including the exact repo-spec source commit, shall produce byte-identical package-owned generated content and identical Git tree identity subject to the accepted FS-003 construction-time commit semantics.
+
+### FS-004-NR-030 — Repo-Spec Upgrade Boundary
+
+**Classification: S**
+
+A later repo-spec framework upgrade is a Ruleset-repository lifecycle operation; FS-004 shall not make App Builder a universal post-construction repo-spec upgrade, migration, or runtime service.
+
+### FS-004-NR-031 — Prior Functional Set Compatibility
+
+**Classification: B**
+
+**State: Inactive**
+
+FS-001, FS-002, and FS-003 remain applicable except where FS-004 deliberately strengthens the `split-git` Ruleset lifecycle contract. Existing runtime application, Ruleset, Dataset, `init-config/`, provenance, save, provider, and Git construction semantics remain unchanged unless this specification explicitly states otherwise.
