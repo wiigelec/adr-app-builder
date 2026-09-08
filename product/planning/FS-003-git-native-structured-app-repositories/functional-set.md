@@ -184,3 +184,30 @@ FS-003 does not define:
 - migration or upgrade automation;
 - Git remote creation, push, synchronization, or hosting;
 - provider-specific repository instructions.
+
+## Corrective Runtime Application Preservation — Issue #5
+
+Git-backed generated applications shall preserve the application definition as explicit runtime material independently of `init-config/`.
+
+For `single-git`, the generated repository shall contain a deterministic root `application.json` semantically equal to the application-definition CLI input.
+
+For `split-git`, both generated repositories shall contain the same deterministic root `application.json` so repository-local agent guidance can consume application-owned initialization without treating `init-config/application.json` as runtime authority.
+
+Generated `AGENTS.md` shall direct the operating Agent/environment to consume the runtime application definition and apply its application-owned initialization semantics. Guidance shall not duplicate or reinterpret application-specific initialization instructions.
+
+Ordinary Dataset saves shall preserve the runtime application definition unchanged.
+
+## Corrective Provenance Preservation — Issue #5
+
+Every generated Git repository shall contain deterministic immutable provenance material identifying:
+
+- the ADR repository used for construction and the exact resolved ADR commit;
+- the ADR App Builder repository and the exact clean App Builder commit used for construction.
+
+The App Builder repository identity shall identify the actual checkout repository supplying the recorded App Builder commit, not an assumed canonical upstream. Common equivalent GitHub transport forms shall normalize to one deterministic repository identity so HTTPS and SSH checkouts of the same repository do not change generated provenance content. A forked checkout shall record the fork repository identity.
+
+The canonical Git-backed realization uses root `provenance.json`.
+
+Provenance is lineage and upgrade-anchor material only. It is not application, Ruleset, Dataset, active-working-state, or provider authority.
+
+Ordinary Dataset saves shall preserve provenance unchanged. Equivalent resolved build inputs shall produce byte-identical provenance content.
