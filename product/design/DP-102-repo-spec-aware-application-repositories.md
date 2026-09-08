@@ -27,16 +27,6 @@ ADR defines the Dataset as the sole authority for committed application-instance
 
 This Design does not redefine those semantics. It defines only how App Builder realizes them for `split-git` repositories while adding repo-spec repository-development lifecycle management to the Ruleset repository and preserving the Dataset repository as independently evolving application-instance state.
 
-## Application Interaction Model
-
-For architectural reasoning, an ADR-derived application may be understood approximately as:
-
-- Agent — transient client and reasoning interface;
-- Ruleset — application contract, governance, and business rules;
-- Dataset — persistent application-instance state.
-
-This comparison is explanatory rather than a required runtime architecture.
-
 ## Packaging and Lifecycle Eligibility
 
 Repo-spec product-development lifecycle management is defined only for the Ruleset repository produced by `split-git`.
@@ -298,7 +288,7 @@ This Design defines:
 - Ruleset product development as including application rules governing Dataset structure, validation, compatibility, and migration;
 - preservation of runtime Ruleset paths as accepted operational realization without requiring relocation beneath `product/`;
 - Ruleset-defined validation, compatibility, or migration mechanisms as remaining Ruleset-owned when installed or executed against Dataset data;
-- governed Dataset compatibility transition as a valid consequence of Ruleset evolution without transfer of Dataset authority;
+- `split-git` realization support for inherited Ruleset-governed Dataset compatibility transitions without transferring Dataset authority or repo-spec lifecycle ownership;
 - post-construction independence from App Builder and the supplying repo-spec checkout;
 - exact accepted repo-spec source identity;
 - determinate Ruleset/Dataset binding for separately evolving `split-git` repositories; and
