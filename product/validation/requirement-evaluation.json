@@ -171,9 +171,127 @@
         "fs002-file-packaging",
         "fs002-git-packaging"
       ]
+    },
+    {
+      "requirement": "FS-003-NR-002",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-003",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-005",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-007",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-008",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-010",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-013",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-014",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-015",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-016",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-017",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-018",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-019",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-022",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-023",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-025",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-026",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-027",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-028",
+      "tasks": [
+        "fs003-git-structured"
+      ]
+    },
+    {
+      "requirement": "FS-003-NR-029",
+      "tasks": [
+        "fs003-git-structured"
+      ]
     }
   ],
-  "build_tasks": [
-    "fs003-git-structured"
-  ]
+  "build_tasks": []
 }
