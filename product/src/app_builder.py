@@ -14,7 +14,6 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "product" / "src" / "profiles"
 DEFAULT_ADR_REPOSITORY = "https://github.com/wiigelec/adr.git"
-APP_BUILDER_REPOSITORY = "https://github.com/wiigelec/adr-app-builder.git"
 FS002_PROFILES = {"single-file", "split-files", "single-git", "split-git"}
 
 GIT_IDENTITY = {
@@ -246,7 +245,13 @@ def init_config_files(input_paths):
     }
 
 
-def runtime_metadata_files(application, adr_repository: str, adr_commit: str, builder_commit: str):
+def runtime_metadata_files(
+    application,
+    adr_repository: str,
+    adr_commit: str,
+    builder_repository: str,
+    builder_commit: str,
+):
     return {
         "application.json": json_bytes(application),
         "provenance.json": json_bytes(
@@ -256,7 +261,7 @@ def runtime_metadata_files(application, adr_repository: str, adr_commit: str, bu
                     "commit": adr_commit,
                 },
                 "app_builder": {
-                    "repository": APP_BUILDER_REPOSITORY,
+                    "repository": builder_repository,
                     "commit": builder_commit,
                 },
             }
@@ -423,6 +428,39 @@ def consume_adr_seed_specs(repository: str, commit: str):
             seeds.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest()})
         return seeds
 
+def normalize_repository_identity(repository: str) -> str:
+    value = repository.strip().rstrip("/")
+    github_prefixes = (
+        "git@github.com:",
+        "ssh://git@github.com/",
+        "https://github.com/",
+        "http://github.com/",
+    )
+    for prefix in github_prefixes:
+        if value.startswith(prefix):
+            path = value[len(prefix):]
+            if path.endswith(".git"):
+                path = path[:-4]
+            if not path or "/" not in path:
+                raise SystemExit(f"invalid GitHub repository origin: {repository}")
+            return f"https://github.com/{path}.git"
+    if not value:
+        raise SystemExit("App Builder repository origin is empty")
+    return value
+
+
+def app_builder_repository() -> str:
+    p = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if p.returncode != 0 or not p.stdout.strip():
+        raise SystemExit("App Builder checkout must have an origin remote for provenance")
+    return normalize_repository_identity(p.stdout)
+
+
 def app_builder_commit() -> str:
     dirty = subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=all"],
@@ -532,6 +570,7 @@ def build_fs002_package(
     input_paths,
     adr_repository: str,
     adr_commit: str,
+    builder_repository: str,
     builder_commit: str,
 ) -> dict:
     package_dir = output_dir / "package"
@@ -570,7 +609,11 @@ def build_fs002_package(
     dataset_files, dataset_ref = realize_component("dataset", dataset, dataset_spec)
     init_files = init_config_files(input_paths)
     runtime_metadata = runtime_metadata_files(
-        application, adr_repository, adr_commit, builder_commit
+        application,
+        adr_repository,
+        adr_commit,
+        builder_repository,
+        builder_commit,
     )
     application_ref = {"kind": "file", "path": "application.json"}
     provenance_ref = {"kind": "file", "path": "provenance.json"}
@@ -694,6 +737,7 @@ def build_fs002(
     packaging,
     adr_repository,
     adr_commit,
+    builder_repository,
     builder_commit,
     output_dir: Path,
     input_paths,
@@ -709,6 +753,7 @@ def build_fs002(
         input_paths,
         adr_repository,
         adr_commit,
+        builder_repository,
         builder_commit,
     )
 
@@ -754,6 +799,7 @@ def main():
     packaging = profile(build["packaging_profile"])
     adr_commit = resolve_adr_main(args.adr_repository)
     consume_adr_seed_specs(args.adr_repository, adr_commit)
+    builder_repository = app_builder_repository()
     builder_commit = app_builder_commit()
 
     if args.output_dir.exists() and any(args.output_dir.iterdir()):
@@ -769,6 +815,7 @@ def main():
             packaging,
             args.adr_repository,
             adr_commit,
+            builder_repository,
             builder_commit,
             args.output_dir,
             {

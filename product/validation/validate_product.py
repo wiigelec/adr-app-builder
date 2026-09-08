@@ -18,10 +18,10 @@ BUILDER = ROOT / "product" / "src" / "app_builder.py"
 PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
-APP_BUILDER_REPOSITORY = "https://github.com/wiigelec/adr-app-builder.git"
 FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "product" / "src"))
+from app_builder import normalize_repository_identity
 from session_state import ApplicationSession
 
 def sha(path):
@@ -36,6 +36,29 @@ def app_builder_head():
         capture_output=True,
         check=True,
     ).stdout.strip()
+
+
+def expected_app_builder_repository():
+    raw = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+    if raw.startswith("git@github.com:"):
+        path = raw[len("git@github.com:"):]
+    elif raw.startswith("ssh://git@github.com/"):
+        path = raw[len("ssh://git@github.com/"):]
+    elif raw.startswith("https://github.com/"):
+        path = raw[len("https://github.com/"):]
+    elif raw.startswith("http://github.com/"):
+        path = raw[len("http://github.com/"):]
+    else:
+        return raw.rstrip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    return f"https://github.com/{path}.git"
 
 
 def run_build(
@@ -479,6 +502,16 @@ def create_adr_fixture(parent: Path):
 def task_profile_contracts():
     require_clean_tree()
 
+    repository_identity_cases = {
+        "https://github.com/example/fork": "https://github.com/example/fork.git",
+        "https://github.com/example/fork.git": "https://github.com/example/fork.git",
+        "git@github.com:example/fork.git": "https://github.com/example/fork.git",
+        "ssh://git@github.com/example/fork.git": "https://github.com/example/fork.git",
+    }
+    for raw, expected in repository_identity_cases.items():
+        if normalize_repository_identity(raw) != expected:
+            raise SystemExit(f"FAIL: App Builder repository identity normalization {raw}")
+
     expected_fs002 = {
         "single-file": ("file", "single"),
         "split-files": ("file", "split"),
@@ -774,7 +807,7 @@ def assert_runtime_metadata(
             "commit": adr_commit,
         },
         "app_builder": {
-            "repository": APP_BUILDER_REPOSITORY,
+            "repository": expected_app_builder_repository(),
             "commit": builder_commit,
         },
     }

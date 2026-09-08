@@ -204,6 +204,8 @@ Every generated Git repository shall contain deterministic immutable provenance 
 - the ADR repository used for construction and the exact resolved ADR commit;
 - the ADR App Builder repository and the exact clean App Builder commit used for construction.
 
+The App Builder repository identity shall identify the actual checkout repository supplying the recorded App Builder commit, not an assumed canonical upstream. Common equivalent GitHub transport forms shall normalize to one deterministic repository identity so HTTPS and SSH checkouts of the same repository do not change generated provenance content. A forked checkout shall record the fork repository identity.
+
 The canonical Git-backed realization uses root `provenance.json`.
 
 Provenance is lineage and upgrade-anchor material only. It is not application, Ruleset, Dataset, active-working-state, or provider authority.
