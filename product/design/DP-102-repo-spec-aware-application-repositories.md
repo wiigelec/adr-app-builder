@@ -19,23 +19,13 @@ Repo-spec integration is a repository-development concern. It does not extend AD
 
 This Design extends DP-100 and DP-101. It preserves App Builder's role as construction tooling, the semantic separation among application definition, Ruleset, Dataset, packaging, and provider adaptation, and the post-construction independence of generated repositories.
 
-## ADR Ownership Boundary
+## Upstream ADR Authority
 
-The governing ownership distinction remains semantic and intentionally simple:
+FS-004 inherits ADR's accepted Agent, Dataset, Ruleset, application-instance, ownership, binding, compatibility, transition, and initialization semantics from the accepted ADR product state.
 
-- **Ruleset owns rules.**
-- **Dataset owns data.**
-- **Agent reasoning is transient and does not own committed application state merely by reasoning about it.**
+ADR defines the Dataset as the sole authority for committed application-instance state, the Ruleset as the owner of semantics governing Dataset structure, interpretation, validity, transition, compatibility, and migration, and Agent reasoning as transient unless accepted into Dataset state through governed transition semantics.
 
-The Ruleset therefore owns application meaning and governance, including rules that define interpretation of Dataset state, permitted and prohibited state, structural or schema requirements for Dataset data, invariants, transition validity and acceptance, mechanical validation obligations, compatibility semantics, and migration or transformation semantics required when Ruleset evolution changes the requirements placed on persisted Dataset data.
-
-The Dataset owns the actual committed instance data governed by those rules.
-
-A rule does not become Dataset-owned merely because it validates, transforms, or otherwise operates on Dataset data. Dataset data does not become Ruleset-owned merely because a Ruleset change requires that data to be validated, migrated, or transformed.
-
-Ruleset evolution may therefore require a governed Dataset compatibility transition without transferring committed-state authority from the Dataset to the Ruleset.
-
-This boundary follows semantic role rather than physical location, file type, execution location, or update frequency.
+This Design does not redefine those semantics. It defines only how App Builder realizes them for `split-git` repositories while adding repo-spec repository-development lifecycle management to the Ruleset repository and preserving the Dataset repository as independently evolving application-instance state.
 
 ## Application Interaction Model
 
@@ -78,6 +68,28 @@ The accepted runtime Ruleset realization may remain at the runtime location esta
 The repo-spec `product/` domain owns development artifacts and implementation work for the Ruleset/application-rule product. Runtime Ruleset material remains the accepted operational realization governed by that lifecycle.
 
 Ruleset product development may include application rules governing Dataset structure, validation, compatibility, and migration.
+
+## Split-Git Ruleset/Dataset Binding
+
+The separately managed Ruleset and Dataset repositories produced by `split-git` shall preserve enough identity or traceability to determine the applicable Ruleset authority for Dataset operations whenever that distinction is consequential.
+
+The binding must remain determinate as the Ruleset and Dataset repositories evolve independently.
+
+The concrete binding representation is a Planning and Build concern. It may be realized through repository-local metadata, references, identifiers, or another mechanically sufficient mechanism, but FS-004 does not prescribe one universal encoding, version field, Git reference, artifact format, or lookup protocol.
+
+Binding information is not an independent semantic authority and does not transfer committed-state authority away from the Dataset.
+
+The Ruleset/Dataset binding shall remain distinguishable from:
+
+- ADR provenance;
+- App Builder construction provenance;
+- repo-spec framework source provenance;
+- ordinary repository history; and
+- Dataset committed-state values.
+
+A consequential change in applicable Ruleset authority shall not silently reinterpret incompatible committed Dataset state. Compatibility, migration, acceptance, refusal, recovery, and related behavior follow the derived application's Ruleset-owned semantics inherited from ADR.
+
+The generated split-git realization shall preserve enough application identity, selected application-instance identity, applicable Ruleset authority, relevant authoritative Dataset state, and required binding information for a fresh reasoning operation to initialize under determinate application semantics without relying on prior conversational memory, the App Builder checkout, or the supplying repo-spec checkout.
 
 ## Split-Git Dataset Repository
 
@@ -142,35 +154,17 @@ Generated repository guidance shall distinguish:
 
 Ordinary Dataset state transition and persistence shall not be reclassified as Ruleset product development.
 
-## Ruleset Evolution and Dataset Compatibility
+## Ruleset Evolution, Validation, and Migration Realization
 
-Ruleset semantics may evolve independently from committed Dataset state.
+FS-004 inherits ADR's Ruleset/Dataset compatibility and evolution semantics rather than redefining them.
 
-A Ruleset change may be compatible with existing Dataset data without transformation, or it may introduce new structural requirements, state vocabulary, invariants, transition semantics, or other rules that make existing Dataset data incompatible with the newer Ruleset.
+The FS-004 realization consequence is that Ruleset-owned validation, compatibility, migration, refusal, recovery, or related mechanisms may be physically installed into or invoked from the Dataset repository when the generated realization requires them.
 
-When that occurs, the application Ruleset owns the compatibility, migration, refusal, recovery, or other transition rules necessary to determine whether and how the existing Dataset may become valid under the newer Ruleset.
+Physical installation or execution location does not transfer semantic authority to the Dataset repository and does not install the repo-spec product-development lifecycle there.
 
-Applying those rules may produce modified Dataset data. The accepted result remains Dataset-owned committed application state.
+Such mechanisms remain Ruleset-owned rules or realizations of Ruleset-owned rules, while any accepted resulting application-instance values remain Dataset-owned committed state.
 
-Ruleset evolution shall not silently reinterpret incompatible committed Dataset data merely because a newer Ruleset exists.
-
-App Builder does not invent application-specific compatibility or migration meaning.
-
-## Ruleset-Defined Dataset Validation and Migration
-
-A complex Ruleset product may define or realize mechanical mechanisms that operate on Dataset data, including structural or schema validation, cross-record invariant validation, dependency or stale-state validation, compatibility evaluation, deterministic migrations, and migration preconditions or postconditions.
-
-These mechanisms are developed and accepted through the Ruleset repository's repo-spec lifecycle when they carry application-rule meaning or mechanically enforce accepted application rules.
-
-A validator is not an independent semantic authority.
-
-A migration implementation is not an independent semantic authority.
-
-If validator or migration behavior conflicts with accepted Ruleset meaning or normative requirements, that is a Ruleset product defect.
-
-The `split-git` Dataset repository may receive installed copies, wrappers, or entry points for such mechanisms when a self-contained realization requires them.
-
-Installation location does not alter their semantic ownership.
+App Builder does not invent application-specific compatibility, migration, or validation meaning and does not become a runtime migration or upgrade service after construction.
 
 ## Post-Construction Independence
 
@@ -255,7 +249,10 @@ At minimum, Validation shall establish that:
 - framework-owned, product-owned, runtime Ruleset, runtime Dataset, `init-config/`, and provenance roles remain distinguishable;
 - the generated Ruleset repository provides the canonical repo-spec Validation composition required by the installed framework;
 - the generated Ruleset repository has no ordinary post-construction dependency on App Builder or the supplying repo-spec checkout;
-- Ruleset-owned Dataset validation or migration artifacts installed into the Dataset repository remain traceable to their applicable Ruleset source and do not introduce Dataset-owned semantic authority; and
+- Ruleset-owned Dataset validation or migration artifacts installed into the Dataset repository remain traceable to their applicable Ruleset source and do not introduce Dataset-owned semantic authority;
+- the generated split-git realization preserves mechanically sufficient Ruleset/Dataset binding material to determine the applicable Ruleset authority where consequential;
+- that binding material remains distinguishable from ADR provenance, App Builder provenance, repo-spec source provenance, repository history, and Dataset committed-state values;
+- a fresh realization can establish application identity, application-instance identity, applicable Ruleset authority, authoritative Dataset state location, and required binding information without depending on prior conversational context, the App Builder checkout, or the supplying repo-spec checkout; and
 - equivalent resolved build inputs preserve required deterministic generated-tree correspondence.
 
 Validation shall evaluate generated candidate repositories rather than treating successful file generation as sufficient evidence.
@@ -292,7 +289,7 @@ The change does not redefine provider semantics, runtime Ruleset meaning, Datase
 
 This Design defines:
 
-- the ADR ownership rule that Ruleset owns rules and Dataset owns committed application-instance data;
+- the `split-git` repository realization of inherited ADR application-instance, Ruleset, Dataset, binding, and initialization semantics;
 - `split-git` as the only packaging profile using repo-spec lifecycle management;
 - mandatory repo-spec lifecycle management for every `split-git` Ruleset repository;
 - no independent lifecycle-selection option for `split-git`;
@@ -303,11 +300,13 @@ This Design defines:
 - Ruleset-defined validation, compatibility, or migration mechanisms as remaining Ruleset-owned when installed or executed against Dataset data;
 - governed Dataset compatibility transition as a valid consequence of Ruleset evolution without transfer of Dataset authority;
 - post-construction independence from App Builder and the supplying repo-spec checkout;
-- exact accepted repo-spec source identity; and
+- exact accepted repo-spec source identity;
+- determinate Ruleset/Dataset binding for separately evolving `split-git` repositories; and
 - provenance and deterministic-construction expectations for installed framework and Ruleset-owned Dataset-governance artifacts.
 
 This Design does not define:
 
+- ADR ownership, application-instance, transition, compatibility, migration, binding, or initialization semantics already owned by the accepted ADR product;
 - a new ADR semantic component;
 - a universal Dataset schema;
 - application-specific artifact schemas or lifecycle states;
