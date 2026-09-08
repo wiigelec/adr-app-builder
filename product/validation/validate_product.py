@@ -563,7 +563,7 @@ def task_profile_contracts():
         )
 
 
-def task_fs001_build():
+def task_core_realization():
     require_clean_tree()
     before = source_snapshot(["application.json", "ruleset.json", "dataset.json", "build.json"])
     builder = app_builder_head()
@@ -619,7 +619,7 @@ def expect_build_failure(
             raise SystemExit(f"FAIL: invalid input accepted: {label}")
 
 
-def task_fs001_input_validation():
+def task_source_input_contracts():
     require_clean_tree()
     with tempfile.TemporaryDirectory() as tmp:
         adr_repository, _ = create_adr_fixture(Path(tmp))
@@ -704,17 +704,17 @@ def validate_fs002_group(profiles):
     assert_source_snapshot(before)
 
 
-def task_fs002_file_packaging():
+def task_file_packaging():
     require_clean_tree()
     validate_fs002_group(["single-file", "split-files"])
 
 
-def task_fs002_git_packaging():
+def task_git_packaging():
     require_clean_tree()
     validate_fs002_group(["single-git", "split-git"])
 
 
-def task_fs002_provider_independence():
+def task_provider_independence():
     require_clean_tree()
     before = source_snapshot(["ruleset.json", "dataset.json"])
     with tempfile.TemporaryDirectory() as tmp:
@@ -860,7 +860,7 @@ def structured_build_value(profile: str, providers=None, *, mixed=False):
     return value
 
 
-def task_fs003_git_structured():
+def task_structured_git_runtime():
     require_clean_tree()
     source_paths = [
         STRUCTURED_BASE / "application.json",
@@ -1102,12 +1102,12 @@ def task_fs003_git_structured():
 
 TASKS = {
     "profile-contracts": task_profile_contracts,
-    "fs001-build": task_fs001_build,
-    "fs001-input-validation": task_fs001_input_validation,
-    "fs002-file-packaging": task_fs002_file_packaging,
-    "fs002-git-packaging": task_fs002_git_packaging,
-    "fs002-provider-independence": task_fs002_provider_independence,
-    "fs003-git-structured": task_fs003_git_structured,
+    "core-realization": task_core_realization,
+    "source-input-contracts": task_source_input_contracts,
+    "file-packaging": task_file_packaging,
+    "git-packaging": task_git_packaging,
+    "provider-independence": task_provider_independence,
+    "structured-git-runtime": task_structured_git_runtime,
 }
 
 
