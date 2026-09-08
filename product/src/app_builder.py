@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "product" / "src" / "profiles"
 DEFAULT_ADR_REPOSITORY = "https://github.com/wiigelec/adr.git"
+APP_BUILDER_REPOSITORY = "https://github.com/wiigelec/adr-app-builder.git"
 FS002_PROFILES = {"single-file", "split-files", "single-git", "split-git"}
 
 GIT_IDENTITY = {
@@ -245,30 +246,60 @@ def init_config_files(input_paths):
     }
 
 
+def runtime_metadata_files(application, adr_repository: str, adr_commit: str, builder_commit: str):
+    return {
+        "application.json": json_bytes(application),
+        "provenance.json": json_bytes(
+            {
+                "adr": {
+                    "repository": str(adr_repository),
+                    "commit": adr_commit,
+                },
+                "app_builder": {
+                    "repository": APP_BUILDER_REPOSITORY,
+                    "commit": builder_commit,
+                },
+            }
+        ),
+    }
+
+
 def guidance_files(profile_id: str, role: str, component_refs):
     locations = "\n".join(
         f"- {name}: `{ref['path']}` ({ref['kind']})"
         for name, ref in sorted(component_refs.items())
     )
     if role == "single":
-        role_text = "This repository contains the runtime Ruleset and persisted runtime Dataset."
+        role_text = (
+            "This repository contains the runtime application definition, runtime Ruleset, "
+            "and persisted runtime Dataset."
+        )
         agents_role = (
-            "Read the runtime Ruleset, initialize active working state from the runtime Dataset, "
-            "maintain governed working state during the session, and persist it only when the user "
-            "requests or accepts a save."
+            "Read the runtime application definition and apply its application-owned initialization "
+            "instructions. Read the runtime Ruleset, initialize active working state from the runtime "
+            "Dataset according to those semantics, maintain governed working state during the session, "
+            "and persist it only when the user requests or accepts a save."
         )
     elif role == "ruleset":
-        role_text = "This repository contains the runtime Ruleset. Persisted Dataset state is external."
+        role_text = (
+            "This repository contains the runtime application definition and runtime Ruleset. "
+            "Persisted Dataset state is external."
+        )
         agents_role = (
-            "The local runtime Ruleset defines behavior. Persisted Dataset state is external; ordinary "
-            "application-state saves do not belong in this repository."
+            "Read the local runtime application definition and apply its application-owned initialization "
+            "instructions. The local runtime Ruleset defines behavior. Persisted Dataset state is external; "
+            "ordinary application-state saves do not belong in this repository."
         )
     else:
-        role_text = "This repository contains the persisted runtime Dataset. The applicable Ruleset is external."
+        role_text = (
+            "This repository contains the runtime application definition and persisted runtime Dataset. "
+            "The applicable Ruleset is external."
+        )
         agents_role = (
-            "The local runtime Dataset is persisted application state. The applicable runtime Ruleset is "
-            "external. Initialize active working state from the Dataset and persist current governed state "
-            "only when the user requests or accepts a save."
+            "Read the local runtime application definition and apply its application-owned initialization "
+            "instructions. The local runtime Dataset is persisted application state. The applicable runtime "
+            "Ruleset is external. Initialize active working state from the Dataset according to governed "
+            "semantics and persist current governed state only when the user requests or accepts a save."
         )
 
     readme = (
@@ -280,7 +311,10 @@ def guidance_files(profile_id: str, role: str, component_refs):
         "## Initialization inputs\n\n"
         "`init-config/` contains byte-for-byte copies of the four App Builder CLI input files that "
         "created this repository. Those files reproduce the original build invocation; they are not "
-        "runtime Ruleset authority or mutable Dataset state.\n\n"
+        "runtime application, Ruleset, or Dataset authority.\n\n"
+        "## Provenance\n\n"
+        "`provenance.json` records the exact ADR and App Builder construction commits as immutable lineage "
+        "and upgrade anchors. It is not application, Ruleset, Dataset, or active-session authority.\n\n"
         "## Working state and save\n\n"
         "Active application working state may be newer than the persisted Dataset. Governed edits do "
         "not automatically persist. A user-requested or user-accepted save writes current governed "
@@ -302,9 +336,9 @@ def guidance_files(profile_id: str, role: str, component_refs):
         "differ from the last persisted Dataset. Ordinary conversation content is not automatically "
         "application state.\n\n"
         "Do not automatically save governed edits. Save only when the user requests or accepts save.\n\n"
-        "During ordinary save, preserve runtime Ruleset material, `init-config/`, `README.md`, `AGENTS.md`, "
-        "and all other non-Dataset realization material. Never use `init-config/dataset.json` as mutable "
-        "runtime storage.\n"
+        "During ordinary save, preserve the runtime application definition, runtime Ruleset material, "
+        "`provenance.json`, `init-config/`, `README.md`, `AGENTS.md`, and all other non-Dataset realization "
+        "material. Never use `init-config/dataset.json` as mutable runtime storage.\n"
         + tree_note
     )
     return {"README.md": readme.encode(), "AGENTS.md": agents.encode()}
@@ -487,7 +521,18 @@ def init_git_repo(repo: Path, files: dict[str, bytes]) -> None:
     run_git(repo, ["commit", "-q", "-m", GIT_INITIAL_MESSAGE], env_extra=commit_env)
 
 
-def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset, build, input_paths) -> dict:
+def build_fs002_package(
+    output_dir: Path,
+    profile_id: str,
+    application,
+    ruleset,
+    dataset,
+    build,
+    input_paths,
+    adr_repository: str,
+    adr_commit: str,
+    builder_commit: str,
+) -> dict:
     package_dir = output_dir / "package"
     if package_dir.exists():
         raise SystemExit(f"package output already exists: {package_dir}")
@@ -523,14 +568,26 @@ def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset, bui
     rules_files, rules_ref = realize_component("ruleset", ruleset, rules_spec)
     dataset_files, dataset_ref = realize_component("dataset", dataset, dataset_spec)
     init_files = init_config_files(input_paths)
+    runtime_metadata = runtime_metadata_files(
+        application, adr_repository, adr_commit, builder_commit
+    )
+    application_ref = {"kind": "file", "path": "application.json"}
+    provenance_ref = {"kind": "file", "path": "provenance.json"}
 
     if profile_id == "single-git":
         guidance = guidance_files(
-            profile_id, "single", {"ruleset": rules_ref, "dataset": dataset_ref}
+            profile_id,
+            "single",
+            {
+                "application": application_ref,
+                "ruleset": rules_ref,
+                "dataset": dataset_ref,
+                "provenance": provenance_ref,
+            },
         )
         init_git_repo(
             package_dir / "repository",
-            merge_files(init_files, rules_files, dataset_files, guidance),
+            merge_files(init_files, runtime_metadata, rules_files, dataset_files, guidance),
         )
         return {
             "profile": profile_id,
@@ -545,16 +602,34 @@ def build_fs002_package(output_dir: Path, profile_id: str, ruleset, dataset, bui
             package_dir / "ruleset",
             merge_files(
                 init_files,
+                runtime_metadata,
                 rules_files,
-                guidance_files(profile_id, "ruleset", {"ruleset": rules_ref}),
+                guidance_files(
+                    profile_id,
+                    "ruleset",
+                    {
+                        "application": application_ref,
+                        "ruleset": rules_ref,
+                        "provenance": provenance_ref,
+                    },
+                ),
             ),
         )
         init_git_repo(
             package_dir / "dataset",
             merge_files(
                 init_files,
+                runtime_metadata,
                 dataset_files,
-                guidance_files(profile_id, "dataset", {"dataset": dataset_ref}),
+                guidance_files(
+                    profile_id,
+                    "dataset",
+                    {
+                        "application": application_ref,
+                        "dataset": dataset_ref,
+                        "provenance": provenance_ref,
+                    },
+                ),
             ),
         )
         return {
@@ -610,9 +685,31 @@ def build_legacy(application, ruleset, dataset, build, packaging, adr_commit, bu
         write_json(output_dir / f"{provider_id}.json", artifact)
 
 
-def build_fs002(application, ruleset, dataset, build, packaging, adr_commit, builder_commit, output_dir: Path, input_paths):
+def build_fs002(
+    application,
+    ruleset,
+    dataset,
+    build,
+    packaging,
+    adr_repository,
+    adr_commit,
+    builder_commit,
+    output_dir: Path,
+    input_paths,
+):
     validate_fs002_profile(packaging, build["packaging_profile"])
-    package_reference = build_fs002_package(output_dir, build["packaging_profile"], ruleset, dataset, build, input_paths)
+    package_reference = build_fs002_package(
+        output_dir,
+        build["packaging_profile"],
+        application,
+        ruleset,
+        dataset,
+        build,
+        input_paths,
+        adr_repository,
+        adr_commit,
+        builder_commit,
+    )
 
     providers_dir = output_dir / "providers"
     providers_dir.mkdir(parents=True)
@@ -669,6 +766,7 @@ def main():
             dataset,
             build,
             packaging,
+            args.adr_repository,
             adr_commit,
             builder_commit,
             args.output_dir,

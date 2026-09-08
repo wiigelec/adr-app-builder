@@ -451,3 +451,18 @@ Canonical validation shall verify:
 Concurrent-session conflict behavior is not part of FS-003 validation.
 
 Mechanical validation passing does not establish semantic acceptance.
+
+## Issue #5 Corrective Build Work
+
+The accepted DP-100 application/provenance semantics require the following FS-003 corrective realization work:
+
+1. Generate root `application.json` in every Git-backed generated repository from the parsed application-definition source without provider reinterpretation.
+2. Generate root `provenance.json` containing ADR repository + exact resolved ADR commit and App Builder repository + exact clean App Builder commit.
+3. Include both files in the single initial Git commit and deterministic generated tree.
+4. Generate repository-local `AGENTS.md` that directs consumption of runtime `application.json` before governed initialization while keeping application-specific instructions solely in the application definition.
+5. Treat `application.json` and `provenance.json` as non-Dataset material preserved across ordinary Dataset save.
+6. Keep all four `init-config/` files byte-identical and non-authoritative.
+7. Validate single-git and split-git runtime application fidelity, provenance fidelity, provider independence, deterministic generation, and save preservation.
+8. Keep `single-file` and `split-files` behavior unchanged.
+
+This is corrective Planning for already accepted Design meaning; it does not add new application semantics.

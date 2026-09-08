@@ -18,6 +18,7 @@ BUILDER = ROOT / "product" / "src" / "app_builder.py"
 PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
+APP_BUILDER_REPOSITORY = "https://github.com/wiigelec/adr-app-builder.git"
 FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "product" / "src"))
@@ -222,11 +223,13 @@ def validate_single_git(out: Path, rules, dataset):
     expected_files = [
         "AGENTS.md",
         "README.md",
+        "application.json",
         "dataset.json",
         "init-config/application.json",
         "init-config/build.json",
         "init-config/dataset.json",
         "init-config/ruleset.json",
+        "provenance.json",
         "ruleset.json",
     ]
     if repo_files(repo) != expected_files:
@@ -265,20 +268,24 @@ def validate_split_git(out: Path, rules, dataset):
     expected_rules = [
         "AGENTS.md",
         "README.md",
+        "application.json",
         "init-config/application.json",
         "init-config/build.json",
         "init-config/dataset.json",
         "init-config/ruleset.json",
+        "provenance.json",
         "ruleset.json",
     ]
     expected_dataset = [
         "AGENTS.md",
         "README.md",
+        "application.json",
         "dataset.json",
         "init-config/application.json",
         "init-config/build.json",
         "init-config/dataset.json",
         "init-config/ruleset.json",
+        "provenance.json",
     ]
     if repo_files(rules_repo) != expected_rules or repo_files(dataset_repo) != expected_dataset:
         raise SystemExit("FAIL: split-git worktree shape")
@@ -613,9 +620,11 @@ def task_fs001_input_validation():
 
 
 def validate_fs002_group(profiles):
-    before = source_snapshot(["ruleset.json", "dataset.json"])
+    before = source_snapshot(["application.json", "ruleset.json", "dataset.json"])
+    application = read_json(BASE / "application.json")
     rules = read_json(BASE / "ruleset.json")
     dataset = read_json(BASE / "dataset.json")
+    builder = app_builder_head()
     validators = {
         "single-file": validate_single_file,
         "split-files": validate_split_files,
@@ -625,7 +634,7 @@ def validate_fs002_group(profiles):
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        adr_repository, _ = create_adr_fixture(root)
+        adr_repository, adr = create_adr_fixture(root)
         configs = root / "configs"
         configs.mkdir()
 
@@ -638,6 +647,26 @@ def validate_fs002_group(profiles):
                 run_build(pb, build_path, adr_repository)
                 compare_initial(profile, pa, pb)
                 validators[profile](pa, rules, dataset)
+                if profile == "single-git":
+                    assert_runtime_metadata(
+                        pa / "package" / "repository",
+                        application,
+                        adr_repository,
+                        adr,
+                        builder,
+                    )
+                elif profile == "split-git":
+                    for repo in [
+                        pa / "package" / "ruleset",
+                        pa / "package" / "dataset",
+                    ]:
+                        assert_runtime_metadata(
+                            repo,
+                            application,
+                            adr_repository,
+                            adr,
+                            builder,
+                        )
 
     assert_source_snapshot(before)
 
@@ -730,6 +759,36 @@ def assert_init_config(repo: Path, application_path: Path, ruleset_path: Path, d
             raise SystemExit(f"FAIL: FS-003 init-config byte fidelity {name}")
 
 
+def assert_runtime_metadata(
+    repo: Path,
+    application,
+    adr_repository,
+    adr_commit: str,
+    builder_commit: str,
+):
+    if read_json(repo / "application.json") != application:
+        raise SystemExit("FAIL: runtime application definition fidelity")
+    expected_provenance = {
+        "adr": {
+            "repository": str(adr_repository),
+            "commit": adr_commit,
+        },
+        "app_builder": {
+            "repository": APP_BUILDER_REPOSITORY,
+            "commit": builder_commit,
+        },
+    }
+    if read_json(repo / "provenance.json") != expected_provenance:
+        raise SystemExit("FAIL: runtime provenance fidelity")
+    agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    if "runtime application definition" not in agents:
+        raise SystemExit("FAIL: AGENTS does not direct runtime application initialization")
+    if "provenance.json" not in agents:
+        raise SystemExit("FAIL: AGENTS does not preserve provenance during save")
+    if "Identify application task-tracker" in agents:
+        raise SystemExit("FAIL: AGENTS duplicates application-specific initialization semantics")
+
+
 def snapshot_without_dataset(repo: Path):
     return {
         relative: sha(repo / relative)
@@ -771,12 +830,14 @@ def task_fs003_git_structured():
         STRUCTURED_BASE / "build.json",
     ]
     before = {path: sha(path) for path in source_paths}
+    application = read_json(STRUCTURED_BASE / "application.json")
     rules = read_json(STRUCTURED_BASE / "ruleset.json")
     dataset = read_json(STRUCTURED_BASE / "dataset.json")
+    builder = app_builder_head()
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        adr_repository, _ = create_adr_fixture(root)
+        adr_repository, adr = create_adr_fixture(root)
         configs = root / "configs"
         configs.mkdir()
 
@@ -809,6 +870,13 @@ def task_fs003_git_structured():
                         STRUCTURED_BASE / "ruleset.json",
                         STRUCTURED_BASE / "dataset.json",
                         build_path,
+                    )
+                    assert_runtime_metadata(
+                        repo,
+                        application,
+                        adr_repository,
+                        adr,
+                        builder,
                     )
                     if reconstruct_component(
                         repo, "ruleset", rules, value["runtime"]["ruleset"]["files"]
@@ -863,6 +931,13 @@ def task_fs003_git_structured():
                             STRUCTURED_BASE / "ruleset.json",
                             STRUCTURED_BASE / "dataset.json",
                             build_path,
+                        )
+                        assert_runtime_metadata(
+                            repo,
+                            application,
+                            adr_repository,
+                            adr,
+                            builder,
                         )
                     rules_head = git(rules_repo, "rev-parse", "HEAD")
                     rules_snapshot = {
