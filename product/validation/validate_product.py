@@ -785,6 +785,12 @@ def assert_runtime_metadata(
         raise SystemExit("FAIL: AGENTS does not direct runtime application initialization")
     if "provenance.json" not in agents:
         raise SystemExit("FAIL: AGENTS does not preserve provenance during save")
+    readme = (repo / "README.md").read_text(encoding="utf-8")
+    runtime_section = readme.split("## Runtime components", 1)[1].split("## Initialization inputs", 1)[0]
+    if "provenance" in runtime_section:
+        raise SystemExit("FAIL: README presents provenance as a runtime component")
+    if "## Provenance" not in readme or "`provenance.json`" not in readme:
+        raise SystemExit("FAIL: README lacks distinct provenance lineage guidance")
     if "Identify application task-tracker" in agents:
         raise SystemExit("FAIL: AGENTS duplicates application-specific initialization semantics")
 

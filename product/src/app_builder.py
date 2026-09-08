@@ -268,6 +268,7 @@ def guidance_files(profile_id: str, role: str, component_refs):
     locations = "\n".join(
         f"- {name}: `{ref['path']}` ({ref['kind']})"
         for name, ref in sorted(component_refs.items())
+        if name != "provenance"
     )
     if role == "single":
         role_text = (
