@@ -94,19 +94,19 @@ Generated repo-spec source lineage shall identify the actual supplying repositor
 
 **Classification: S**
 
-The generated `split-git` repository pair shall preserve enough stable identity or traceability to determine the applicable Ruleset authority for consequential Dataset operations while Ruleset and Dataset repositories evolve independently.
+The generated `split-git` repository pair shall preserve enough stable realization identity or traceability to determine which exact Ruleset content App Builder paired with the application instance while Ruleset and Dataset repositories evolve independently, without replacing application-owned semantics that determine applicable Ruleset authority.
 
 ### FS-004-NR-014 — Binding Representation Non-Prescription
 
 **Classification: S**
 
-The FS-004 binding mechanism is an App Builder realization choice and shall not be represented as a universal ADR binding encoding, versioning model, repository technology, or application-specific semantic identifier.
+The FS-004 `binding.json` mechanism is an App Builder realization-traceability choice and shall not be represented as a universal ADR binding encoding, versioning model, repository technology, application-owned binding rule, or application-specific semantic identifier.
 
 ### FS-004-NR-015 — Binding Authority Separation
 
 **Classification: S**
 
-Ruleset/Dataset binding information shall not become an independent semantic authority and shall not transfer committed-state authority away from the Dataset.
+FS-004 realization binding information shall not become an independent semantic authority, shall not transfer committed-state authority away from the Dataset, and shall not override, reinterpret, normalize, or replace application-owned Ruleset-binding semantics or binding-related source fields.
 
 ### FS-004-NR-016 — Initialization Determinacy
 
@@ -114,7 +114,7 @@ Ruleset/Dataset binding information shall not become an independent semantic aut
 
 **State: Inactive**
 
-A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, applicable Ruleset authority, authoritative Dataset state location, and required binding information without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
+A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, application-owned semantics for determining applicable Ruleset authority, authoritative Dataset state location, and App Builder realization traceability for the paired Ruleset content without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
 
 ### FS-004-NR-017 — Dataset Repository Operational Role
 
@@ -180,7 +180,7 @@ The generated Ruleset repository shall retain deterministic source lineage conta
 
 **State: Inactive**
 
-Repo-spec source lineage and Ruleset/Dataset binding shall be mechanically distinguishable from ADR provenance, App Builder provenance, ordinary Git history, runtime Ruleset identity, and Dataset committed-state values.
+Repo-spec source lineage and FS-004 realization binding shall be mechanically distinguishable from ADR provenance, App Builder provenance, ordinary Git history, runtime Ruleset identity, Dataset committed-state values, and application-owned binding-related fields or semantics.
 
 ### FS-004-NR-026 — Governance Artifact Traceability
 
@@ -226,4 +226,4 @@ A later repo-spec framework upgrade is a Ruleset-repository lifecycle operation;
 
 **State: Inactive**
 
-FS-001, FS-002, and FS-003 remain applicable except where FS-004 deliberately strengthens the `split-git` Ruleset lifecycle contract. Existing runtime application, Ruleset, Dataset, `init-config/`, provenance, save, provider, and Git construction semantics remain unchanged unless this specification explicitly states otherwise.
+FS-001, FS-002, and FS-003 remain applicable except where FS-004 deliberately strengthens the `split-git` Ruleset lifecycle contract. Existing runtime application, Ruleset, Dataset, application-owned binding-related fields, `init-config/`, provenance, save, provider, and Git construction semantics remain unchanged unless this specification explicitly states otherwise. FS-004 shall not infer new semantic meaning from arbitrary binding-looking source fields.
