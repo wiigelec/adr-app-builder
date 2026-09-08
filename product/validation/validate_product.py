@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,117 @@ PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
 FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
+CANDIDATE_ENV = "ADR_APP_BUILDER_VALIDATION_COMMITTED_CANDIDATE"
+
+def worktree_changes():
+    return subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    ).stdout.splitlines()
+
+def run_from_committed_candidate_if_needed(argv):
+    if os.environ.get(CANDIDATE_ENV) == "1":
+        return None
+    if not worktree_changes():
+        return None
+
+    with tempfile.TemporaryDirectory(prefix="adr-app-builder-validation-candidate-") as tmp:
+        candidate = Path(tmp) / "candidate"
+        subprocess.run(
+            ["git", "worktree", "add", "--detach", str(candidate), "HEAD"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+        try:
+            patch = subprocess.run(
+                ["git", "diff", "--binary", "HEAD", "--"],
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            ).stdout
+            if patch:
+                applied = subprocess.run(
+                    ["git", "apply", "--whitespace=nowarn", "-"],
+                    cwd=candidate,
+                    input=patch,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                if applied.returncode != 0:
+                    raise SystemExit(
+                        "FAIL product-validation: could not materialize tracked candidate changes: "
+                        + applied.stderr.decode(errors="replace").strip()
+                    )
+
+            untracked = subprocess.run(
+                ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            ).stdout.split(b"\0")
+            for raw in untracked:
+                if not raw:
+                    continue
+                relative = Path(raw.decode())
+                source = ROOT / relative
+                target = candidate / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target, follow_symlinks=False)
+
+            subprocess.run(["git", "add", "-A"], cwd=candidate, check=True)
+            staged = subprocess.run(
+                ["git", "diff", "--cached", "--quiet"],
+                cwd=candidate,
+            )
+            if staged.returncode == 1:
+                env = os.environ.copy()
+                env.update({
+                    "GIT_AUTHOR_NAME": "ADR App Builder Validation",
+                    "GIT_AUTHOR_EMAIL": "validation-candidate@adr.invalid",
+                    "GIT_COMMITTER_NAME": "ADR App Builder Validation",
+                    "GIT_COMMITTER_EMAIL": "validation-candidate@adr.invalid",
+                })
+                subprocess.run(
+                    [
+                        "git", "-c", "commit.gpgsign=false",
+                        "commit", "-q",
+                        "-m", "Materialize product Validation candidate",
+                    ],
+                    cwd=candidate,
+                    env=env,
+                    check=True,
+                )
+            elif staged.returncode != 0:
+                raise SystemExit(
+                    "FAIL product-validation: could not inspect candidate staging state"
+                )
+
+            env = os.environ.copy()
+            env[CANDIDATE_ENV] = "1"
+            command = [
+                sys.executable,
+                str(candidate / "product" / "validation" / "validate_product.py"),
+                *argv,
+            ]
+            return subprocess.call(command, cwd=candidate, env=env)
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(candidate)],
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "product" / "src"))
 from app_builder import normalize_repository_identity
@@ -460,7 +572,7 @@ def require_clean_tree():
         check=True,
     ).stdout
     if dirty.splitlines():
-        raise SystemExit("FAIL: validation requires a clean committed App Builder tree")
+        raise SystemExit("FAIL: App Builder construction test source is not a clean committed candidate")
 
 
 def source_snapshot(names):
@@ -1141,6 +1253,11 @@ def run_task(name: str):
 
 
 def main(argv: list[str] | None = None) -> int:
+    effective_argv = list(sys.argv[1:] if argv is None else argv)
+    candidate_result = run_from_committed_candidate_if_needed(effective_argv)
+    if candidate_result is not None:
+        return candidate_result
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--list-tasks", action="store_true")
     parser.add_argument("--task")
