@@ -276,8 +276,8 @@ Build shall introduce functional Validation tasks covering these responsibilitie
 3. `ruleset-binding` — deterministic `binding.json`, semantic digest construction, preservation/non-override of application-owned binding fields, binding/provenance separation, recognized-contract conflict rejection, and initialization determinacy.
 4. `generated-ruleset-lifecycle` — installed framework structure, combined guidance, canonical root Validation, CI delegation, and no generated repository-specific `product/`.
 5. `split-repository-independence` — post-construction Ruleset/Dataset independence and Dataset save preservation.
-6. `fs004-provenance` — Ruleset-only repo-spec provenance and distinction from binding/ADR/App Builder lineage.
-7. `fs004-determinism` — equivalent resolved inputs including repo-spec commit produce byte-identical generated content and Git tree identity.
+6. `repo-spec-provenance` — Ruleset-only repo-spec provenance and distinction from binding/ADR/App Builder lineage.
+7. `generated-tree-determinism` — equivalent resolved inputs including repo-spec commit produce byte-identical generated content and Git tree identity.
 
 These task names are part of Planning's consequential Validation intent and shall be used for FS-004 requirement bindings unless Build discovers a concrete mechanical reason that requires returning to Planning.
 
