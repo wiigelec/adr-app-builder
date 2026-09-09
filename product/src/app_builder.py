@@ -329,7 +329,11 @@ def dataset_repository_guidance_files(profile_id: str, component_refs):
         b"`binding.json` determinately identifies the exact external Ruleset realization "
         b"bound to this application instance. It is realization metadata, not Ruleset "
         b"semantic authority, construction provenance, Git history, or Dataset state. "
-        b"Before ordinary initialization, compare the supplied Ruleset realization with "
+        b"For `ruleset_authority.kind` equal to `content-sha256`, reproduce the identity "
+        b"by parsing the supplied Ruleset JSON, serializing that parsed value as UTF-8 JSON "
+        b"with object keys sorted recursively, compact separators, and non-ASCII characters "
+        b"preserved, with no trailing whitespace, then taking SHA-256 of those bytes. "
+        b"Before ordinary initialization, compare that supplied Ruleset identity with "
         b"this bound identity. An exact match establishes binding alignment; a mismatch "
         b"must be resolved by Ruleset-owned compatibility, migration, acceptance, refusal, "
         b"recovery, or rebinding semantics before ordinary application operation proceeds.\n"
@@ -337,10 +341,13 @@ def dataset_repository_guidance_files(profile_id: str, component_refs):
     files["AGENTS.md"] += (
         b"\n`binding.json` identifies the external Ruleset realization bound to this Dataset. "
         b"Preserve it unchanged during ordinary Dataset saves. Do not treat it as "
-        b"owning or redefining Ruleset semantics. If the supplied Ruleset realization "
-        b"does not exactly match the binding, do not silently initialize ordinary working "
-        b"state; apply Ruleset-owned compatibility, migration, acceptance, refusal, "
-        b"recovery, or rebinding semantics first.\n"
+        b"owning or redefining Ruleset semantics. For `content-sha256`, parse the supplied "
+        b"Ruleset JSON and serialize the parsed value as UTF-8 JSON with recursively sorted "
+        b"object keys, compact separators, non-ASCII characters preserved, and no trailing "
+        b"whitespace; SHA-256 those bytes and compare the result with the bound digest. "
+        b"If the supplied Ruleset realization does not exactly match the binding, do not "
+        b"silently initialize ordinary working state; apply Ruleset-owned compatibility, "
+        b"migration, acceptance, refusal, recovery, or rebinding semantics first.\n"
     )
     return files
 

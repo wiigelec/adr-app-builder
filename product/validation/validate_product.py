@@ -1607,6 +1607,30 @@ def task_ruleset_binding():
             raise SystemExit("FAIL: FS-004 Ruleset guidance lacks one-to-many binding boundary")
         if "does not exactly match the binding" not in dataset_agents:
             raise SystemExit("FAIL: FS-004 Dataset guidance lacks mismatch initialization gate")
+        dataset_readme = (dataset_repo / "README.md").read_text(encoding="utf-8")
+        for token in [
+            "ruleset_authority.kind",
+            "content-sha256",
+            "parsing the supplied Ruleset JSON",
+            "object keys sorted recursively",
+            "compact separators",
+            "non-ASCII characters preserved",
+            "no trailing whitespace",
+            "SHA-256",
+        ]:
+            if token not in dataset_readme:
+                raise SystemExit(f"FAIL: FS-004 Dataset README lacks binding algorithm guidance {token}")
+        for token in [
+            "content-sha256",
+            "parse the supplied Ruleset JSON",
+            "recursively sorted object keys",
+            "compact separators",
+            "non-ASCII characters preserved",
+            "no trailing whitespace",
+            "SHA-256",
+        ]:
+            if token not in dataset_agents:
+                raise SystemExit(f"FAIL: FS-004 Dataset AGENTS lacks binding algorithm guidance {token}")
 
 
 def task_generated_ruleset_lifecycle():
