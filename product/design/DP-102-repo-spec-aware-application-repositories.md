@@ -61,11 +61,13 @@ Ruleset product development may include application rules governing Dataset stru
 
 ## Split-Git Ruleset/Dataset Binding
 
-The separately managed Ruleset and Dataset repositories produced by `split-git` shall preserve enough identity or traceability to determine the applicable Ruleset authority for Dataset operations whenever that distinction is consequential.
+The separately managed Ruleset and Dataset repositories produced by `split-git` shall preserve enough identity or traceability for each Dataset repository to determine the applicable Ruleset authority for Dataset operations whenever that distinction is consequential.
 
-The binding must remain determinate as the Ruleset and Dataset repositories evolve independently.
+The relationship is directional: one Dataset is bound to one applicable Ruleset realization; one Ruleset realization may govern zero, one, or many independently evolving Datasets; and the Ruleset repository shall not become bound to, depend on, or require knowledge of any Dataset instance merely because a Dataset identifies that Ruleset as its authority.
 
-The concrete binding representation is a Planning and Build concern. It may be realized through repository-local metadata, references, identifiers, or another mechanically sufficient mechanism, but FS-004 does not prescribe one universal encoding, version field, Git reference, artifact format, or lookup protocol.
+The Dataset-side binding must remain determinate as the Ruleset and Dataset repositories evolve independently. Construction provenance or retained initialization inputs in the Ruleset repository do not create a reverse Ruleset-to-Dataset binding.
+
+The concrete Dataset-side binding representation is a Planning and Build concern. It may be realized through repository-local metadata, references, identifiers, or another mechanically sufficient mechanism, but FS-004 does not prescribe one universal encoding, version field, Git reference, artifact format, or lookup protocol.
 
 Binding information is not an independent semantic authority and does not transfer committed-state authority away from the Dataset.
 
@@ -79,7 +81,9 @@ The Ruleset/Dataset binding shall remain distinguishable from:
 
 A consequential change in applicable Ruleset authority shall not silently reinterpret incompatible committed Dataset state. Compatibility, migration, acceptance, refusal, recovery, and related behavior follow the derived application's Ruleset-owned semantics inherited from ADR.
 
-The generated split-git realization shall preserve enough application identity, selected application-instance identity, applicable Ruleset authority, relevant authoritative Dataset state, and required binding information for a fresh reasoning operation to initialize under determinate application semantics without relying on prior conversational memory, the App Builder checkout, or the supplying repo-spec checkout.
+The generated split-git realization shall preserve enough application identity, selected application-instance identity, applicable Ruleset authority, relevant authoritative Dataset state, and required binding information for a fresh reasoning operation to assess initialization under determinate application semantics without relying on prior conversational memory, the App Builder checkout, or the supplying repo-spec checkout.
+
+A determinate assessment need not imply that ordinary application operation may proceed. When the supplied Ruleset realization differs from the Dataset's bound Ruleset realization, initialization shall preserve enough information for the applicable Ruleset-owned compatibility, migration, acceptance, refusal, recovery, or related semantics to decide whether operation may proceed, whether migration is required, or whether operation must stop.
 
 ## Split-Git Dataset Repository
 
@@ -291,7 +295,7 @@ This Design defines:
 - `split-git` realization support for inherited Ruleset-governed Dataset compatibility transitions without transferring Dataset authority or repo-spec lifecycle ownership;
 - post-construction independence from App Builder and the supplying repo-spec checkout;
 - exact accepted repo-spec source identity;
-- determinate Ruleset/Dataset binding for separately evolving `split-git` repositories; and
+- determinate one-way Dataset-to-Ruleset binding for separately evolving `split-git` repositories, without reverse Ruleset-to-Dataset binding; and
 - provenance and deterministic-construction expectations for installed framework and Ruleset-owned Dataset-governance artifacts.
 
 This Design does not define:
