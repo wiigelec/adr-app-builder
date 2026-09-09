@@ -281,7 +281,7 @@ def canonical_ruleset_sha256(ruleset) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def ruleset_binding_files(application, dataset, ruleset):
+def dataset_ruleset_binding_files(application, dataset, ruleset):
     return {
         "binding.json": json_bytes(
             {
@@ -328,12 +328,19 @@ def dataset_repository_guidance_files(profile_id: str, component_refs):
         b"\n## Ruleset realization binding\n\n"
         b"`binding.json` determinately identifies the exact external Ruleset realization "
         b"bound to this application instance. It is realization metadata, not Ruleset "
-        b"semantic authority, construction provenance, Git history, or Dataset state.\n"
+        b"semantic authority, construction provenance, Git history, or Dataset state. "
+        b"Before ordinary initialization, compare the supplied Ruleset realization with "
+        b"this bound identity. An exact match establishes binding alignment; a mismatch "
+        b"must be resolved by Ruleset-owned compatibility, migration, acceptance, refusal, "
+        b"recovery, or rebinding semantics before ordinary application operation proceeds.\n"
     )
     files["AGENTS.md"] += (
-        b"\n`binding.json` identifies the applicable external Ruleset realization. "
+        b"\n`binding.json` identifies the external Ruleset realization bound to this Dataset. "
         b"Preserve it unchanged during ordinary Dataset saves. Do not treat it as "
-        b"owning or redefining Ruleset semantics.\n"
+        b"owning or redefining Ruleset semantics. If the supplied Ruleset realization "
+        b"does not exactly match the binding, do not silently initialize ordinary working "
+        b"state; apply Ruleset-owned compatibility, migration, acceptance, refusal, "
+        b"recovery, or rebinding semantics first.\n"
     )
     return files
 
@@ -399,7 +406,7 @@ def adapt_ruleset_structure_policy(repo: Path, rules_ref) -> None:
     except Exception as exc:
         raise SystemExit(f"installed repo-spec structural policy has unsupported shape: {exc}")
 
-    root_files.update({"application.json", "binding.json", "provenance.json"})
+    root_files.update({"application.json", "provenance.json"})
     root_dirs.add("init-config")
     if rules_ref["kind"] == "file" and rules_ref["path"] == "ruleset.json":
         root_files.add("ruleset.json")
@@ -431,10 +438,11 @@ def extend_initialized_ruleset_guidance(repo: Path, component_refs) -> None:
         + "## Initialization inputs\n\n"
         + "`init-config/` contains immutable construction inputs and reproduces the "
           "App Builder construction invocation. It is not runtime semantic authority.\n\n"
-        + "\n\n## Binding\n\n"
-        + "`binding.json` determinately identifies the exact Ruleset realization "
-          "bound to the paired application instance. It is not semantic authority, "
-          "construction provenance, Dataset state, or Git identity.\n\n"
+        + "\n\n## Dataset binding boundary\n\n"
+        + "This Ruleset repository is not bound to any Dataset instance. One or more "
+          "independent Dataset repositories may identify this Ruleset realization through "
+          "their own `binding.json` metadata. Construction provenance and retained "
+          "`init-config/` inputs do not create a reverse Ruleset-to-Dataset binding.\n\n"
         + "## Provenance\n\n"
         + "`provenance.json` records ADR, App Builder, and repo-spec construction lineage "
           "and upgrade anchors. It is not a runtime component or semantic authority.\n",
@@ -448,10 +456,12 @@ def extend_initialized_ruleset_guidance(repo: Path, component_refs) -> None:
           "application-owned initialization instructions before operating the realization. "
           "The local runtime Ruleset defines applicable behavior; persisted Dataset state is "
           "external to this repository.\n\n"
-        + "Preserve runtime `application.json`, runtime Ruleset material, `binding.json`, "
-          "`provenance.json`, and `init-config/` as distinct roles. The local runtime "
-          "Ruleset is the accepted operational realization; repo-spec `product/` is the "
-          "development domain for later Ruleset product work.\n\n"
+        + "Preserve runtime `application.json`, runtime Ruleset material, "
+          "`provenance.json`, and `init-config/` as distinct roles. This Ruleset repository "
+          "is not bound to any Dataset instance; Dataset repositories carry their own "
+          "Ruleset binding metadata. The local runtime Ruleset is the accepted operational "
+          "realization; repo-spec `product/` is the development domain for later Ruleset "
+          "product work.\n\n"
         + "Do not invent application-specific Product Design, Dataset schema, compatibility, "
           "migration, or validation meaning from the generic initialized scaffold. "
           "Ordinary Dataset saves belong in the paired Dataset repository and must not "
@@ -907,7 +917,7 @@ def build_package(
 
     if profile_id == "split-git":
         repo_spec_commit = resolve_repo_spec_main(repo_spec_repository)
-        binding_files = ruleset_binding_files(application, dataset, ruleset)
+        binding_files = dataset_ruleset_binding_files(application, dataset, ruleset)
         ruleset_metadata = ruleset_repository_metadata_files(
             application,
             adr_repository,
@@ -921,7 +931,7 @@ def build_package(
             package_dir / "ruleset",
             repo_spec_repository,
             repo_spec_commit,
-            merge_files(init_files, ruleset_metadata, rules_files, binding_files),
+            merge_files(init_files, ruleset_metadata, rules_files),
             rules_ref,
             {"application": application_ref, "ruleset": rules_ref, "provenance": provenance_ref},
         )

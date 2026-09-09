@@ -410,7 +410,6 @@ def validate_split_git(out: Path, rules, dataset):
         "AGENTS.md",
         "README.md",
         "application.json",
-        "binding.json",
         "init-config/application.json",
         "init-config/build.json",
         "init-config/dataset.json",
@@ -1528,7 +1527,7 @@ def task_lifecycle_installation():
             if (dataset_repo / forbidden).exists():
                 raise SystemExit(f"FAIL: FS-004 Dataset lifecycle exclusion {forbidden}")
         policy = read_json(rules_repo / "repo" / "validation" / "structure-policy.json")
-        expected_files = {"application.json", "binding.json", "provenance.json", "ruleset.json"}
+        expected_files = {"application.json", "provenance.json", "ruleset.json"}
         if not expected_files <= set(policy["root"]["files"]):
             raise SystemExit("FAIL: FS-004 file Ruleset policy adaptation")
         if "init-config" not in set(policy["root"]["directories"]):
@@ -1560,8 +1559,10 @@ def task_ruleset_binding():
         state = build_repo_spec_split_realization(Path(tmp), application=application)
         rules_repo = state["out"] / "package" / "ruleset"
         dataset_repo = state["out"] / "package" / "dataset"
-        if (rules_repo / "binding.json").read_bytes() != (dataset_repo / "binding.json").read_bytes():
-            raise SystemExit("FAIL: FS-004 binding byte identity")
+        if (rules_repo / "binding.json").exists():
+            raise SystemExit("FAIL: FS-004 Ruleset repository contains Dataset-instance binding state")
+        if not (dataset_repo / "binding.json").is_file():
+            raise SystemExit("FAIL: FS-004 Dataset repository lacks Ruleset binding")
         ruleset = read_json(BASE / "ruleset.json")
         canonical = json.dumps(ruleset, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         expected_digest = hashlib.sha256(canonical).hexdigest()
@@ -1571,12 +1572,18 @@ def task_ruleset_binding():
             "instance_id": read_json(BASE / "dataset.json")["instance"]["id"],
             "ruleset_authority": {"kind": "content-sha256", "sha256": expected_digest},
         }
-        if read_json(rules_repo / "binding.json") != expected:
-            raise SystemExit("FAIL: FS-004 determinate Ruleset binding")
+        if read_json(dataset_repo / "binding.json") != expected:
+            raise SystemExit("FAIL: FS-004 determinate Dataset-to-Ruleset binding")
         if read_json(rules_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
             raise SystemExit("FAIL: FS-004 application-owned binding field preservation")
         if read_json(dataset_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
             raise SystemExit("FAIL: FS-004 Dataset application-owned binding field preservation")
+        rules_agents = (rules_repo / "AGENTS.md").read_text(encoding="utf-8")
+        dataset_agents = (dataset_repo / "AGENTS.md").read_text(encoding="utf-8")
+        if "not bound to any Dataset instance" not in rules_agents:
+            raise SystemExit("FAIL: FS-004 Ruleset guidance lacks one-to-many binding boundary")
+        if "does not exactly match the binding" not in dataset_agents:
+            raise SystemExit("FAIL: FS-004 Dataset guidance lacks mismatch initialization gate")
 
 
 def task_generated_ruleset_lifecycle():
@@ -1594,7 +1601,7 @@ def task_generated_ruleset_lifecycle():
         agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
         if "repo-spec-managed" not in readme:
             raise SystemExit("FAIL: FS-004 combined Ruleset README lifecycle guidance")
-        for token in ["binding.json", "runtime Ruleset", "repo-spec `product/`"]:
+        for token in ["not bound to any Dataset instance", "runtime Ruleset", "repo-spec `product/`"]:
             if token not in agents:
                 raise SystemExit(f"FAIL: FS-004 combined Ruleset AGENTS guidance {token}")
 
@@ -1631,7 +1638,9 @@ def task_repo_spec_provenance():
             raise SystemExit("FAIL: FS-004 Dataset gained repo-spec provenance")
         if "binding" in rules_provenance or "binding" in dataset_provenance:
             raise SystemExit("FAIL: FS-004 binding embedded in construction provenance")
-        binding = read_json(rules_repo / "binding.json")
+        if (rules_repo / "binding.json").exists():
+            raise SystemExit("FAIL: FS-004 Ruleset repository contains Dataset binding")
+        binding = read_json(dataset_repo / "binding.json")
         if "adr" in binding or "app_builder" in binding or "repo_spec" in binding:
             raise SystemExit("FAIL: FS-004 provenance embedded in realization binding")
 
