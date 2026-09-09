@@ -1,7 +1,7 @@
 # FS-004 — Repo-Spec-Aware Application Repositories
 
 functional_set: FS-004
-design_revision: ac7cca859e6027461f9a23694fb7d8cf38ae026a
+design_revision: ce9529754d7c046498bcae024763411b72b20794
 
 ## Purpose
 
@@ -12,7 +12,7 @@ It extends the accepted FS-001 through FS-003 Git-backed realization so newly ge
 - install the repo-spec repository-development lifecycle only into the Ruleset repository;
 - keep the Dataset repository outside the repo-spec product-development lifecycle;
 - preserve inherited ADR application-instance, Ruleset, Dataset, binding, compatibility, transition, and initialization semantics;
-- preserve determinate Ruleset/Dataset binding while the two repositories evolve independently;
+- preserve determinate one-way Dataset-to-Ruleset binding while the repositories evolve independently, without binding the Ruleset repository to any Dataset instance;
 - consume one exact accepted repo-spec framework revision as a construction input;
 - keep repo-spec framework state distinct from repository-specific Ruleset product state, runtime Ruleset material, Dataset state, construction provenance, and `init-config/`;
 - remain independently usable after App Builder construction completes;
@@ -68,9 +68,11 @@ Physical installation or execution in the Dataset repository shall not transfer 
 
 ## Ruleset/Dataset Binding
 
-The generated Ruleset and Dataset repositories shall preserve enough identity or traceability to determine the applicable Ruleset authority for Dataset operations whenever that distinction is consequential.
+The generated Dataset repository shall preserve enough identity or traceability to determine the applicable Ruleset authority for Dataset operations whenever that distinction is consequential.
 
-The binding shall remain determinate while the repositories evolve independently.
+The binding is directional: each Dataset binds to one applicable Ruleset realization; one Ruleset realization may govern zero, one, or many Datasets; and the Ruleset repository shall not contain Dataset-instance binding state or acquire a dependency on any bound Dataset.
+
+The Dataset-side binding shall remain determinate while the repositories evolve independently. Ruleset-side construction provenance and immutable initialization inputs do not create a reverse binding.
 
 Binding information shall remain distinct from:
 
@@ -92,11 +94,14 @@ The generated `split-git` realization shall preserve enough information for a fr
 
 - application identity;
 - selected application-instance identity;
-- applicable Ruleset authority;
+- the Dataset's bound Ruleset realization;
+- the currently supplied applicable Ruleset realization;
 - relevant authoritative Dataset state; and
-- required Ruleset/Dataset binding information.
+- required Dataset-to-Ruleset binding information.
 
-Ordinary initialization shall not depend on prior conversational memory, the App Builder checkout, or the supplying repo-spec checkout.
+If the supplied Ruleset realization exactly matches the Dataset binding, ordinary initialization may proceed subject to application-owned validation semantics. If it does not match, the realization shall support a determinate Ruleset-owned compatibility, migration, acceptance, refusal, recovery, or related decision before ordinary application operation proceeds.
+
+Ordinary initialization assessment shall not depend on prior conversational memory, the App Builder checkout, or the supplying repo-spec checkout.
 
 FS-004 does not prescribe one universal representation for that information.
 

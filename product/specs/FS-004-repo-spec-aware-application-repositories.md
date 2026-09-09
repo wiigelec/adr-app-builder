@@ -18,7 +18,7 @@ FS-004 repo-spec lifecycle behavior shall apply only to `split-git`. `single-fil
 **Classification: M**
 
 
-Every newly generated `split-git` Ruleset repository shall be constructed by invoking the selected accepted repo-spec revision's `repo-spec init --repo DESTINATION` initializer against an empty candidate, shall preserve the initializer-produced lifecycle scaffold, and shall support the installed Design → Planning → Build → Validation → Semantic Review → Acceptance repository-development lifecycle. After initialization and before adding App Builder application material, App Builder shall adapt only the installed canonical `repo/validation/structure-policy.json` to authorize maintained root files `application.json`, `binding.json`, and `provenance.json`, maintained root directory `init-config`, and exactly the selected FS-003 Ruleset runtime root role (`ruleset.json` as a root file or `ruleset` as a root directory), while preserving initializer-supplied authorization and default-deny semantics. Accepted repo-spec revision `f241d287e0ca9476c3ea96e3c5ad0cc49767ed04` is the reviewed baseline for this initializer contract.
+Every newly generated `split-git` Ruleset repository shall be constructed by invoking the selected accepted repo-spec revision's `repo-spec init --repo DESTINATION` initializer against an empty candidate, shall preserve the initializer-produced lifecycle scaffold, and shall support the installed Design → Planning → Build → Validation → Semantic Review → Acceptance repository-development lifecycle. After initialization and before adding App Builder application material, App Builder shall adapt only the installed canonical `repo/validation/structure-policy.json` to authorize maintained root files `application.json`, `binding.json`, and `provenance.json`, maintained root directory `init-config`, and exactly the selected FS-003 Ruleset runtime root role (`ruleset.json` as a root file or `ruleset` as a root directory), while preserving initializer-supplied authorization and default-deny semantics. The Ruleset repository shall not authorize or contain Dataset-instance `binding.json`. Accepted repo-spec revision `f241d287e0ca9476c3ea96e3c5ad0cc49767ed04` is the reviewed baseline for this initializer contract.
 
 ### FS-004-NR-004 — Dataset Lifecycle Exclusion
 
@@ -85,7 +85,7 @@ Generated repo-spec source lineage shall identify the actual supplying repositor
 
 **Classification: S**
 
-The generated `split-git` repository pair shall preserve enough stable realization identity or traceability to determine which exact Ruleset realization is bound as the applicable Ruleset authority for the application instance while Ruleset and Dataset repositories evolve independently, without making the binding metadata itself semantic authority.
+Each generated `split-git` Dataset shall preserve enough stable realization identity or traceability to determine which exact Ruleset realization is bound as the applicable Ruleset authority for that application instance while Ruleset and Dataset repositories evolve independently, without making the binding metadata itself semantic authority. Binding is directional: each Dataset binds to one Ruleset realization; one Ruleset realization may govern zero, one, or many Datasets; and the Ruleset repository shall not be bound to, depend on, or require knowledge of any Dataset instance.
 
 ### FS-004-NR-014 — Binding Representation Non-Prescription
 
@@ -97,14 +97,14 @@ The FS-004 `binding.json` mechanism is an App Builder realization-binding choice
 
 **Classification: S**
 
-FS-004 realization binding information shall determinately identify which Ruleset realization is bound to the application instance while remaining non-authoritative metadata: it shall not create Ruleset meaning, transfer committed-state authority away from the Dataset, or override, reinterpret, normalize, or replace application-owned Ruleset semantics or binding-related source fields.
+FS-004 Dataset-side realization binding information shall determinately identify which Ruleset realization is bound to the application instance while remaining non-authoritative metadata: it shall not create Ruleset meaning, transfer committed-state authority away from the Dataset, or override, reinterpret, normalize, or replace application-owned Ruleset semantics or binding-related source fields.
 
 ### FS-004-NR-016 — Initialization Determinacy
 
 **Classification: M**
 
 
-A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, the exact Ruleset realization bound as applicable authority, the application-owned semantics governing that Ruleset's meaning and compatibility behavior, authoritative Dataset state location, and required binding information without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
+A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, the exact Ruleset realization bound by the Dataset, the currently supplied applicable Ruleset realization, the application-owned semantics governing Ruleset meaning and compatibility behavior, authoritative Dataset state location, and required binding information without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout. Exact binding alignment shall be distinguishable from mismatch. A mismatch shall support a determinate Ruleset-owned compatibility, migration, acceptance, refusal, recovery, or rebinding decision before ordinary application operation proceeds.
 
 ### FS-004-NR-017 — Dataset Repository Operational Role
 

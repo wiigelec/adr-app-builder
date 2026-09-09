@@ -1,6 +1,6 @@
 # FS-004 — Repo-Spec-Aware Application Repositories Plan
 
-design_revision: ac7cca859e6027461f9a23694fb7d8cf38ae026a
+design_revision: ce9529754d7c046498bcae024763411b72b20794
 
 ## Objective
 
@@ -85,7 +85,6 @@ For every FS-004 `split-git` Ruleset repository, Planning authorizes these addit
 
 ```text
 application.json
-binding.json
 provenance.json
 ```
 
@@ -117,15 +116,15 @@ The Dataset repository shall continue to use the accepted App Builder constructi
 
 ### Ruleset/Dataset binding representation
 
-Every generated `split-git` Ruleset and Dataset repository shall contain deterministic root:
+Every generated `split-git` Dataset repository shall contain deterministic root:
 
 ```text
 binding.json
 ```
 
-Both repositories shall receive byte-identical binding content for one generated pair.
+The Ruleset repository shall not contain Dataset-instance binding metadata. A Ruleset realization may govern zero, one, or many Datasets, and no Dataset instance identifier is part of Ruleset repository identity.
 
-The binding object shall have this realization-owned shape:
+The Dataset binding object shall have this realization-owned shape:
 
 ```json
 {
@@ -148,15 +147,15 @@ The Ruleset digest shall be SHA-256 over canonical UTF-8 JSON encoding of the pa
 - UTF-8 with non-ASCII characters preserved;
 - no trailing whitespace.
 
-The digest is a deterministic App Builder realization identity for the exact Ruleset content bound into the generated realization. It is not an ADR semantic version, not an independent Ruleset authority, not a Git commit identity, and not an application-owned rule.
+The digest is a deterministic App Builder realization identity for the exact Ruleset content bound by the Dataset. It is not an ADR semantic version, not an independent Ruleset authority, not a Git commit identity, and not an application-owned rule.
 
-`binding.json` is non-authoritative realization binding metadata. Its Ruleset identity does not create or own Ruleset semantics; it determinately identifies which exact Ruleset realization is bound to the generated application instance. It shall not override, reinterpret, normalize, replace, or assign semantic meaning to application-owned binding semantics that may already exist in `application.json`, runtime Ruleset material, or runtime Dataset material.
+Dataset `binding.json` is non-authoritative realization binding metadata. Its Ruleset identity does not create or own Ruleset semantics; it determinately identifies which exact Ruleset realization is bound to that application instance. It shall not override, reinterpret, normalize, replace, or assign semantic meaning to application-owned binding semantics that may already exist in `application.json`, runtime Ruleset material, or runtime Dataset material.
 
 App Builder shall preserve application-owned source fields according to the accepted FS-001 through FS-003 preservation contracts, including fields whose names appear binding-related. FS-004 defines no universal schema for such fields and shall not infer that an arbitrary field such as `dataset.instance.ruleset_binding` is semantically equivalent to `binding.json.ruleset_authority`.
 
-If a current or future accepted source contract defines a mechanically recognizable application-owned binding assertion and that assertion is mechanically incompatible with the Ruleset realization identified by `binding.json`, construction shall fail rather than silently rewrite either the application-owned assertion or `binding.json`. When no such accepted mechanical contract exists, App Builder shall preserve the application-owned field unchanged and uninterpreted; the mere presence of an unknown binding-looking field does not displace the determinate FS-004 realization binding.
+If a current or future accepted source contract defines a mechanically recognizable application-owned binding assertion and that assertion is mechanically incompatible with the Ruleset realization identified by Dataset `binding.json`, construction shall fail rather than silently rewrite either the application-owned assertion or `binding.json`. When no such accepted mechanical contract exists, App Builder shall preserve the application-owned field unchanged and uninterpreted; the mere presence of an unknown binding-looking field does not displace the determinate FS-004 realization binding.
 
-A later Ruleset-repository lifecycle operation that intentionally changes applicable Ruleset semantics is responsible for application-owned compatibility handling and for updating realization traceability through that later lifecycle; App Builder does not perform that post-construction operation.
+A later Ruleset-repository lifecycle operation that intentionally changes applicable Ruleset semantics is responsible for application-owned compatibility handling. Each affected Dataset remains independently responsible for evaluating its binding and for applying any Ruleset-owned compatibility, migration, acceptance, refusal, recovery, or rebinding semantics when next operated. App Builder does not perform that post-construction operation.
 
 Ordinary Dataset saves shall preserve `binding.json` unchanged under the accepted FS-003 non-Dataset preservation contract.
 
@@ -165,13 +164,14 @@ Ordinary Dataset saves shall preserve `binding.json` unchanged under the accepte
 Fresh split-git initialization shall use existing accepted runtime material plus `binding.json`:
 
 - `application.json` provides application identity and application-owned initialization semantics;
-- Dataset `instance.id` represented in `binding.json` provides selected application-instance identity;
+- Dataset `instance.id` represented in Dataset `binding.json` provides selected application-instance identity;
 - application-owned Ruleset semantics remain authoritative for what the applicable Ruleset means and how compatibility or transition is governed;
-- `binding.json.ruleset_authority` determinately identifies which exact Ruleset realization is bound to this generated application instance;
+- Dataset `binding.json.ruleset_authority` determinately identifies which exact Ruleset realization is bound to this generated application instance;
+- the currently supplied Ruleset realization can be compared with that bound identity to distinguish exact alignment from a state requiring Ruleset-owned compatibility, migration, acceptance, refusal, recovery, or rebinding evaluation;
 - existing runtime component references/guidance identify runtime Ruleset and Dataset locations;
 - runtime Dataset material remains authoritative persisted state.
 
-Generated guidance shall never instruct the operating environment to treat `binding.json` as owning or redefining Ruleset semantics. The binding identifies which Ruleset realization applies; the identified Ruleset and application-owned semantics determine what that authority means and how compatibility, migration, refusal, recovery, or transition is governed.
+Generated guidance shall never instruct the operating environment to treat Dataset `binding.json` as owning or redefining Ruleset semantics. The binding identifies which Ruleset realization the Dataset was bound to; the supplied Ruleset and application-owned semantics determine whether that identity is an exact match and, when it is not, how compatibility, migration, acceptance, refusal, recovery, rebinding, or transition is governed. A mismatch shall not be silently treated as compatible and shall not permit ordinary operation before the Ruleset-owned decision is resolved.
 
 Generated Ruleset and Dataset `README.md` / `AGENTS.md` shall direct the operating environment to use these surfaces without duplicating application-specific semantics.
 
@@ -224,7 +224,6 @@ The generated Ruleset repository guidance shall distinguish:
 
 - runtime `application.json`;
 - runtime Ruleset material;
-- `binding.json`;
 - construction `provenance.json`;
 - immutable `init-config/`;
 - installed `repo/` framework material;
@@ -235,7 +234,7 @@ The generated Dataset repository guidance shall distinguish:
 
 - runtime `application.json`;
 - persisted Dataset material;
-- external applicable Ruleset semantics plus the determinate Ruleset realization binding recorded by `binding.json`;
+- external applicable Ruleset semantics plus the determinate one-way Ruleset realization binding recorded by Dataset `binding.json`;
 - construction provenance;
 - `init-config/`;
 - absence of repo-spec product-development lifecycle ownership.
@@ -273,7 +272,7 @@ Build shall introduce functional Validation tasks covering these responsibilitie
 
 1. `repo-spec-source` — exact `main` resolution, fetch identity, accepted initializer availability, source truthfulness, and initialized framework correspondence.
 2. `lifecycle-installation` — split-git-only initializer invocation, exact installed structural-policy adaptation, Dataset/non-split exclusion, and no selector/provider drift.
-3. `ruleset-binding` — deterministic `binding.json`, semantic digest construction, preservation/non-override of application-owned binding fields, binding/provenance separation, recognized-contract conflict rejection, and initialization determinacy.
+3. `ruleset-binding` — Dataset-only deterministic `binding.json`, absence of Dataset-instance binding state from the Ruleset repository, semantic digest construction, preservation/non-override of application-owned binding fields, binding/provenance separation, recognized-contract conflict rejection, and initialization determinacy including exact-match versus Ruleset-owned mismatch resolution.
 4. `generated-ruleset-lifecycle` — installed framework structure, combined guidance, canonical root Validation, CI delegation, and no generated repository-specific `product/`.
 5. `split-repository-independence` — post-construction Ruleset/Dataset independence and Dataset save preservation.
 6. `repo-spec-provenance` — Ruleset-only repo-spec provenance and distinction from binding/ADR/App Builder lineage.
@@ -298,7 +297,7 @@ Build shall consume this reviewed Planning result and its canonical normative sp
 1. Add repo-spec source resolution/fetch helpers and the `--repo-spec-repository` CLI surface.
 2. Invoke the exact selected supplying commit's accepted `repo-spec init --repo DESTINATION` initializer against an empty temporary Ruleset candidate.
 3. Adapt the initializer-installed `repo/validation/structure-policy.json` with exactly the App Builder-owned root files/directories authorized by this Plan and the selected FS-003 Ruleset runtime representation.
-4. Add accepted FS-003 runtime material plus deterministic `binding.json` generation and preservation into the initialized Ruleset candidate.
+4. Add accepted FS-003 runtime Ruleset material to the initialized Ruleset candidate and add deterministic Dataset-side `binding.json` generation and preservation to the paired Dataset candidate without creating reverse Ruleset-to-Dataset binding state.
 5. Extend Ruleset-only provenance with repo-spec source lineage.
 6. Extend generated Ruleset/Dataset README and AGENTS guidance without replacing initializer-owned lifecycle composition.
 7. Keep the Dataset repository on the non-repo-spec construction path.
