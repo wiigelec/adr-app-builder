@@ -15,7 +15,7 @@ This Planning result owns the consequential technical intent and the canonical n
 FS-004 work is bounded to:
 
 - resolving one exact accepted repo-spec framework source for each `split-git` build;
-- installing reusable repo-spec framework material into the generated Ruleset repository;
+- constructing the generated Ruleset repository through the selected repo-spec initializer and adapting its installed structural policy for the exact App Builder-owned runtime/realization surface;
 - generating combined runtime/development guidance without inventing application-specific Product Design;
 - excluding repo-spec lifecycle material from the Dataset repository and non-`split-git` packaging profiles;
 - preserving accepted runtime Ruleset and Dataset realizations from FS-003;
@@ -48,34 +48,72 @@ For `split-git`, App Builder shall:
 1. resolve `<repository>` `refs/heads/main` with Git;
 2. require that the reference resolves to one commit;
 3. fetch that exact commit into an isolated temporary Git repository;
-4. install framework material only from that fetched commit;
-5. normalize supported equivalent GitHub SSH/HTTPS forms to one deterministic repository identity for generated source lineage.
+4. require the fetched supplying checkout to expose the accepted `repo-spec init --repo DESTINATION` initializer contract reviewed at accepted repo-spec revision `f241d287e0ca9476c3ea96e3c5ad0cc49767ed04` or a later accepted compatible revision;
+5. invoke the initializer from that exact fetched supplying checkout against an empty temporary Ruleset candidate repository;
+6. treat the initializer-produced repository as the only authoritative repo-spec lifecycle scaffold for that generated Ruleset repository rather than selectively copying framework paths;
+7. normalize supported equivalent GitHub SSH/HTTPS forms to one deterministic repository identity for generated source lineage.
 
 Acceptance for the supplying framework is represented by integration into the supplying repository's `main`, matching repo-spec's lifecycle rule that accepted state is intentionally integrated into `main`.
 
 No supplying working tree is used as an authority. Uncommitted local changes are not consumed merely because a local Git repository path is supplied.
 
-### Installed repo-spec framework surface
+### Repo-Spec initialization and structural-policy adaptation
 
-From the exact resolved repo-spec commit, FS-004 shall install into the generated Ruleset repository:
+Accepted repo-spec revision `f241d287e0ca9476c3ea96e3c5ad0cc49767ed04` establishes the initializer and repository-owned structural-policy contract consumed by this Planning result.
+
+App Builder shall not manually assemble a partial repo-spec repository by copying `repo/**`, `scripts/validate`, `.github/workflows/validation.yml`, or other selected framework paths.
+
+Instead, from the exact resolved accepted supplying commit, App Builder shall invoke:
 
 ```text
-repo/**
-scripts/validate
-.github/workflows/validation.yml
+repo-spec init --repo <temporary-ruleset-candidate>
 ```
 
-These are the reusable framework ownership/validation surfaces.
+using that supplying checkout's accepted initializer implementation.
 
-The supplier repository's `product/**`, root `README.md`, and initializer-product-specific product state shall not be copied.
+The initialized candidate is the authoritative generic repo-spec repository scaffold. App Builder shall preserve initializer-produced reusable framework state, root Validation composition, CI delegation, framework source identity, generic product-development scaffold, and canonical:
 
-The supplier root `AGENTS.md` shall not be copied verbatim because FS-003 already owns generated root agent guidance. App Builder shall instead generate one combined `AGENTS.md` that preserves accepted runtime Ruleset guidance and adds repo-spec lifecycle guidance sufficient to direct later Design/Planning/Build/Validation/Semantic Review/Acceptance work to the installed framework.
+```text
+repo/validation/structure-policy.json
+```
 
-The existing App Builder-generated root `README.md` shall likewise be extended with a development-lifecycle section rather than replaced by the supplying repo-spec README.
+The generic `product/` scaffold produced by repo-spec initialization is lifecycle infrastructure and readiness state. App Builder shall not populate it with application-specific Product Design, normative requirements, validators, migration semantics, or other invented application meaning during FS-004 construction.
 
-FS-004 shall not create a repository-specific `product/` domain during construction. The installed framework and generated guidance make the repository structurally ready for later Ruleset product development; repository-specific `product/` state begins only when later Product Design intentionally creates it.
+After successful initialization and before adding App Builder runtime/realization material, App Builder shall adapt only the installed structural-policy authorization required by the exact generated Ruleset repository shape.
 
-This avoids creating a vacuous product validator or generated placeholder Product Design.
+For every FS-004 `split-git` Ruleset repository, Planning authorizes these additional maintained root files:
+
+```text
+application.json
+binding.json
+provenance.json
+```
+
+and this additional maintained root directory:
+
+```text
+init-config
+```
+
+The selected Ruleset runtime representation additionally authorizes exactly one of:
+
+```text
+root.files += ["ruleset.json"]
+```
+
+or:
+
+```text
+root.directories += ["ruleset"]
+```
+
+according to the already accepted FS-003 file/tree realization.
+
+App Builder shall preserve every initializer-supplied authorization and shall not remove or reinterpret repo-spec-required roles. Policy adaptation shall remain explicit and finite; it shall not add wildcard, glob, recursive, negative, plugin, or generalized bypass behavior.
+
+After policy adaptation, App Builder shall add the accepted FS-003/FS-004 application material, generated combined guidance, binding material, and Ruleset-only construction provenance.
+
+The Dataset repository shall continue to use the accepted App Builder construction path and shall not invoke repo-spec initialization or receive repo-spec lifecycle state.
 
 ### Ruleset/Dataset binding representation
 
@@ -172,13 +210,13 @@ Build Validation for FS-004 shall verify that the generic generated Dataset repo
 
 ### Generated Ruleset repository Validation
 
-The copied root `scripts/validate` remains the canonical repository-wide entry point.
+The root `scripts/validate` installed by the selected repo-spec initializer remains the canonical repository-wide entry point.
 
-Because FS-004 construction does not create repository-specific `product/`, the root composition shall execute installed `repo/scripts/validate` and shall succeed without requiring a product Validation entry point.
+The initializer-produced generic product scaffold and Validation composition shall remain intact. App Builder shall not replace that composition with a generated substitute.
 
-The installed `.github/workflows/validation.yml` shall delegate to root `scripts/validate` as supplied by the exact repo-spec framework revision.
+The installed `.github/workflows/validation.yml` shall continue to delegate to root `scripts/validate` as supplied by the exact repo-spec framework revision.
 
-Generated candidate Validation shall execute root `scripts/validate` inside the generated Ruleset repository.
+After structural-policy adaptation and application-material insertion, generated candidate Validation shall execute root `scripts/validate` inside the completed Ruleset repository and construction shall fail before promotion if canonical Validation fails.
 
 ### Generated guidance
 
@@ -233,8 +271,8 @@ Planning owns these classifications. Build owns construction of the correspondin
 
 Build shall introduce functional Validation tasks covering these responsibilities:
 
-1. `repo-spec-source` — exact `main` resolution, fetch identity, source truthfulness, and installed framework correspondence.
-2. `lifecycle-installation` — split-git-only eligibility, Ruleset framework installation, Dataset/non-split exclusion, and no selector/provider drift.
+1. `repo-spec-source` — exact `main` resolution, fetch identity, accepted initializer availability, source truthfulness, and initialized framework correspondence.
+2. `lifecycle-installation` — split-git-only initializer invocation, exact installed structural-policy adaptation, Dataset/non-split exclusion, and no selector/provider drift.
 3. `ruleset-binding` — deterministic `binding.json`, semantic digest construction, preservation/non-override of application-owned binding fields, binding/provenance separation, recognized-contract conflict rejection, and initialization determinacy.
 4. `generated-ruleset-lifecycle` — installed framework structure, combined guidance, canonical root Validation, CI delegation, and no generated repository-specific `product/`.
 5. `split-repository-independence` — post-construction Ruleset/Dataset independence and Dataset save preservation.
@@ -258,15 +296,16 @@ The requirement-evaluation manifest shall not be changed during Planning. Build 
 Build shall consume this reviewed Planning result and its canonical normative specification.
 
 1. Add repo-spec source resolution/fetch helpers and the `--repo-spec-repository` CLI surface.
-2. Add exact framework extraction/installation from the selected repo-spec commit.
-3. Add deterministic `binding.json` generation and preservation.
-4. Extend Ruleset-only provenance with repo-spec source lineage.
-5. Extend generated Ruleset/Dataset README and AGENTS guidance.
-6. Integrate framework installation only into `split-git` Ruleset repository construction.
-7. Add the seven planned functional Validation tasks.
-8. Bind all mechanically evaluated FS-004 requirements in `product/validation/requirement-evaluation.json`.
-9. Validate positive and negative generated candidates, canonical repository Validation, and determinism.
-10. Perform Build Review and Semantic Review against DP-102, this Plan, and the canonical FS-004 specification before Acceptance.
+2. Invoke the exact selected supplying commit's accepted `repo-spec init --repo DESTINATION` initializer against an empty temporary Ruleset candidate.
+3. Adapt the initializer-installed `repo/validation/structure-policy.json` with exactly the App Builder-owned root files/directories authorized by this Plan and the selected FS-003 Ruleset runtime representation.
+4. Add accepted FS-003 runtime material plus deterministic `binding.json` generation and preservation into the initialized Ruleset candidate.
+5. Extend Ruleset-only provenance with repo-spec source lineage.
+6. Extend generated Ruleset/Dataset README and AGENTS guidance without replacing initializer-owned lifecycle composition.
+7. Keep the Dataset repository on the non-repo-spec construction path.
+8. Add the seven planned functional Validation tasks.
+9. Bind all mechanically evaluated FS-004 requirements in `product/validation/requirement-evaluation.json`.
+10. Validate positive and negative generated candidates, canonical generated Ruleset repository Validation, and determinism.
+11. Perform Build Review and Semantic Review against DP-102, this Plan, and the canonical FS-004 specification before Acceptance.
 
 ## Exclusions
 
@@ -277,7 +316,8 @@ This plan does not authorize:
 - application-specific schema or migration invention;
 - a universal ADR Ruleset/Dataset binding format;
 - use of Git commit identity as the Ruleset semantic binding identity;
-- generated placeholder Product Design or a vacuous product validator;
+- manual selective copying of repo-spec framework/lifecycle files instead of using the accepted initializer;
+- treating initializer-produced generic product scaffold as accepted application-specific Product Design;
 - automatic repo-spec framework upgrades;
 - runtime App Builder participation after construction;
 - provider-specific changes to lifecycle eligibility;

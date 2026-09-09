@@ -20,7 +20,7 @@ FS-004 repo-spec lifecycle behavior shall apply only to `split-git`. `single-fil
 
 **State: Inactive**
 
-Every newly generated `split-git` Ruleset repository shall contain the selected accepted repo-spec framework and shall support the installed Design → Planning → Build → Validation → Semantic Review → Acceptance repository-development lifecycle.
+Every newly generated `split-git` Ruleset repository shall be constructed by invoking the selected accepted repo-spec revision's `repo-spec init --repo DESTINATION` initializer against an empty candidate, shall preserve the initializer-produced lifecycle scaffold, and shall support the installed Design → Planning → Build → Validation → Semantic Review → Acceptance repository-development lifecycle. After initialization and before adding App Builder application material, App Builder shall adapt only the installed canonical `repo/validation/structure-policy.json` to authorize maintained root files `application.json`, `binding.json`, and `provenance.json`, maintained root directory `init-config`, and exactly the selected FS-003 Ruleset runtime root role (`ruleset.json` as a root file or `ruleset` as a root directory), while preserving initializer-supplied authorization and default-deny semantics. Accepted repo-spec revision `f241d287e0ca9476c3ea96e3c5ad0cc49767ed04` is the reviewed baseline for this initializer contract.
 
 ### FS-004-NR-004 — Dataset Lifecycle Exclusion
 
@@ -80,7 +80,7 @@ Generic App Builder-generated lifecycle or guidance material shall not become ac
 
 **State: Inactive**
 
-Each `split-git` build shall resolve one supplying repo-spec repository `refs/heads/main` to one exact commit and install framework material only from that exact accepted commit.
+Each `split-git` build shall resolve one supplying repo-spec repository `refs/heads/main` to one exact accepted commit, fetch that exact commit, and invoke the repo-spec initializer from that fetched supplying checkout. App Builder shall not manually substitute a selectively copied framework surface for the initializer-produced repository.
 
 ### FS-004-NR-012 — Repo-Spec Source Truthfulness
 
@@ -142,7 +142,7 @@ Dataset-side Ruleset-governance tooling, when present, shall not install, imply,
 
 **State: Inactive**
 
-The generated Ruleset repository shall contain the reusable repo-spec framework, root Validation composition, CI Validation delegation, and generated lifecycle guidance required to begin later repository-specific Ruleset product development without requiring repository-specific Product Design to exist at construction time.
+The generated Ruleset repository shall preserve the reusable framework, generic product-development scaffold, root Validation composition, CI Validation delegation, and framework source identity produced by the selected repo-spec initializer, while adding App Builder lifecycle guidance required to begin later repository-specific Ruleset product development without inventing repository-specific Product Design at construction time.
 
 ### FS-004-NR-021 — No Invented Application Semantics
 
@@ -196,7 +196,7 @@ When FS-004 installs Ruleset-owned governance artifacts into the Dataset reposit
 
 **State: Inactive**
 
-Every generated `split-git` Ruleset repository shall contain executable root `scripts/validate` composition and the installed repo-spec framework Validation surface required for canonical repository-wide mechanical Validation.
+Every generated `split-git` Ruleset repository shall preserve executable root `scripts/validate` composition and repo-spec Validation surfaces installed by the selected initializer; after App Builder adapts the installed structural policy and adds application material, that canonical repository-wide Validation shall succeed.
 
 ### FS-004-NR-028 — Generated Candidate Validation
 
