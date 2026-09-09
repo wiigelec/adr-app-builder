@@ -1572,8 +1572,31 @@ def task_ruleset_binding():
             "instance_id": read_json(BASE / "dataset.json")["instance"]["id"],
             "ruleset_authority": {"kind": "content-sha256", "sha256": expected_digest},
         }
-        if read_json(dataset_repo / "binding.json") != expected:
+        observed_binding = read_json(dataset_repo / "binding.json")
+        if observed_binding != expected:
             raise SystemExit("FAIL: FS-004 determinate Dataset-to-Ruleset binding")
+
+        bound_digest = observed_binding["ruleset_authority"]["sha256"]
+        exact_supplied_digest = hashlib.sha256(canonical).hexdigest()
+        if exact_supplied_digest != bound_digest:
+            raise SystemExit("FAIL: FS-004 exact supplied Ruleset did not establish binding alignment")
+
+        mismatched_ruleset = json.loads(json.dumps(ruleset))
+        mismatch_marker = "__fs004_validation_mismatch__"
+        if isinstance(mismatched_ruleset, dict):
+            mismatched_ruleset[mismatch_marker] = True
+        else:
+            mismatched_ruleset = {"value": mismatched_ruleset, mismatch_marker: True}
+        mismatch_canonical = json.dumps(
+            mismatched_ruleset,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        mismatched_supplied_digest = hashlib.sha256(mismatch_canonical).hexdigest()
+        if mismatched_supplied_digest == bound_digest:
+            raise SystemExit("FAIL: FS-004 mismatched supplied Ruleset was not distinguishable from binding")
+
         if read_json(rules_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
             raise SystemExit("FAIL: FS-004 application-owned binding field preservation")
         if read_json(dataset_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
