@@ -1601,9 +1601,16 @@ def task_generated_ruleset_lifecycle():
         agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
         if "repo-spec-managed" not in readme:
             raise SystemExit("FAIL: FS-004 combined Ruleset README lifecycle guidance")
-        for token in ["not bound to any Dataset instance", "runtime Ruleset", "repo-spec `product/`"]:
+        for token in [
+            "not bound to any Dataset instance",
+            "runtime Ruleset",
+            "repo-spec `product/`",
+            "Dataset repository being operated",
+        ]:
             if token not in agents:
                 raise SystemExit(f"FAIL: FS-004 combined Ruleset AGENTS guidance {token}")
+        if "paired Dataset repository" in agents:
+            raise SystemExit("FAIL: FS-004 Ruleset guidance implies persistent one-to-one Dataset pairing")
 
 
 def task_split_repository_independence():

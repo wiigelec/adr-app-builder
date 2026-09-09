@@ -464,7 +464,7 @@ def extend_initialized_ruleset_guidance(repo: Path, component_refs) -> None:
           "product work.\n\n"
         + "Do not invent application-specific Product Design, Dataset schema, compatibility, "
           "migration, or validation meaning from the generic initialized scaffold. "
-          "Ordinary Dataset saves belong in the paired Dataset repository and must not "
+          "Ordinary Dataset saves belong in the Dataset repository being operated and must not "
           "mutate this Ruleset repository.\n",
         encoding="utf-8",
     )
