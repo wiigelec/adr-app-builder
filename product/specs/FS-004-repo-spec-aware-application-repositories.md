@@ -10,7 +10,6 @@ FS-004 shall extend the accepted `split-git` realization with repo-spec-aware Ru
 
 **Classification: B**
 
-**State: Inactive**
 
 FS-004 repo-spec lifecycle behavior shall apply only to `split-git`. `single-file`, `split-files`, and `single-git` shall retain their accepted lifecycle behavior and shall not receive FS-004 repo-spec lifecycle installation.
 
@@ -18,7 +17,6 @@ FS-004 repo-spec lifecycle behavior shall apply only to `split-git`. `single-fil
 
 **Classification: M**
 
-**State: Inactive**
 
 Every newly generated `split-git` Ruleset repository shall be constructed by invoking the selected accepted repo-spec revision's `repo-spec init --repo DESTINATION` initializer against an empty candidate, shall preserve the initializer-produced lifecycle scaffold, and shall support the installed Design → Planning → Build → Validation → Semantic Review → Acceptance repository-development lifecycle. After initialization and before adding App Builder application material, App Builder shall adapt only the installed canonical `repo/validation/structure-policy.json` to authorize maintained root files `application.json`, `binding.json`, and `provenance.json`, maintained root directory `init-config`, and exactly the selected FS-003 Ruleset runtime root role (`ruleset.json` as a root file or `ruleset` as a root directory), while preserving initializer-supplied authorization and default-deny semantics. Accepted repo-spec revision `f241d287e0ca9476c3ea96e3c5ad0cc49767ed04` is the reviewed baseline for this initializer contract.
 
@@ -26,7 +24,6 @@ Every newly generated `split-git` Ruleset repository shall be constructed by inv
 
 **Classification: M**
 
-**State: Inactive**
 
 The paired `split-git` Dataset repository shall not contain repo-spec product-development lifecycle installation or repository-development ownership surfaces.
 
@@ -34,7 +31,6 @@ The paired `split-git` Dataset repository shall not contain repo-spec product-de
 
 **Classification: M**
 
-**State: Inactive**
 
 `split-git` shall have no independent configuration option that disables, selects, or substitutes the FS-004 repo-spec lifecycle contract.
 
@@ -42,7 +38,6 @@ The paired `split-git` Dataset repository shall not contain repo-spec product-de
 
 **Classification: M**
 
-**State: Inactive**
 
 Changing only provider selection shall not enable, disable, reinterpret, or alter FS-004 lifecycle eligibility or installed repo-spec framework content.
 
@@ -56,7 +51,6 @@ The `split-git` Ruleset repository is the repository-development home for the ap
 
 **Classification: M**
 
-**State: Inactive**
 
 Installing repo-spec lifecycle material shall preserve the accepted FS-003 runtime Ruleset realization at its runtime location and shall not require runtime Ruleset material to move beneath `product/`.
 
@@ -64,7 +58,6 @@ Installing repo-spec lifecycle material shall preserve the accepted FS-003 runti
 
 **Classification: M**
 
-**State: Inactive**
 
 Generated Ruleset repositories shall keep reusable repo-spec framework state mechanically distinguishable from repository-specific product-development state, accepted runtime Ruleset material, construction provenance, and `init-config/`.
 
@@ -78,7 +71,6 @@ Generic App Builder-generated lifecycle or guidance material shall not become ac
 
 **Classification: M**
 
-**State: Inactive**
 
 Each `split-git` build shall resolve one supplying repo-spec repository `refs/heads/main` to one exact accepted commit, fetch that exact commit, and invoke the repo-spec initializer from that fetched supplying checkout. App Builder shall not manually substitute a selectively copied framework surface for the initializer-produced repository.
 
@@ -86,7 +78,6 @@ Each `split-git` build shall resolve one supplying repo-spec repository `refs/he
 
 **Classification: M**
 
-**State: Inactive**
 
 Generated repo-spec source lineage shall identify the actual supplying repository and resolved commit used for installation and shall not silently substitute another repository or revision.
 
@@ -112,7 +103,6 @@ FS-004 realization binding information shall determinately identify which Rulese
 
 **Classification: M**
 
-**State: Inactive**
 
 A fresh generated `split-git` realization shall expose enough repository-local material to establish application identity, selected application-instance identity, the exact Ruleset realization bound as applicable authority, the application-owned semantics governing that Ruleset's meaning and compatibility behavior, authoritative Dataset state location, and required binding information without prior conversational context, the App Builder checkout, or the supplying repo-spec checkout.
 
@@ -132,7 +122,6 @@ Ruleset-owned validation, compatibility, migration, refusal, recovery, or relate
 
 **Classification: M**
 
-**State: Inactive**
 
 Dataset-side Ruleset-governance tooling, when present, shall not install, imply, or require repo-spec product-development lifecycle ownership in the Dataset repository.
 
@@ -140,7 +129,6 @@ Dataset-side Ruleset-governance tooling, when present, shall not install, imply,
 
 **Classification: M**
 
-**State: Inactive**
 
 The generated Ruleset repository shall preserve the reusable framework, generic product-development scaffold, root Validation composition, CI Validation delegation, and framework source identity produced by the selected repo-spec initializer, while adding App Builder lifecycle guidance required to begin later repository-specific Ruleset product development without inventing repository-specific Product Design at construction time.
 
@@ -154,7 +142,6 @@ FS-004 construction shall not invent application-specific normative requirements
 
 **Classification: M**
 
-**State: Inactive**
 
 After construction, the Ruleset repository shall execute its installed canonical repo-spec Validation and support ordinary repository-development lifecycle work without requiring the App Builder checkout or supplying repo-spec working tree.
 
@@ -162,7 +149,6 @@ After construction, the Ruleset repository shall execute its installed canonical
 
 **Classification: M**
 
-**State: Inactive**
 
 After construction, the Dataset repository shall remain usable as application-instance persistence according to the generated realization and applicable Ruleset binding without requiring App Builder to act as runtime, save, commit, or lookup service.
 
@@ -170,7 +156,6 @@ After construction, the Dataset repository shall remain usable as application-in
 
 **Classification: M**
 
-**State: Inactive**
 
 The generated Ruleset repository shall retain deterministic source lineage containing the normalized supplying repo-spec repository identity and exact resolved repo-spec commit installed during construction.
 
@@ -178,7 +163,6 @@ The generated Ruleset repository shall retain deterministic source lineage conta
 
 **Classification: M**
 
-**State: Inactive**
 
 Repo-spec source lineage and FS-004 realization binding shall be mechanically distinguishable from ADR provenance, App Builder provenance, ordinary Git history, Dataset committed-state values, and application-owned binding-related fields or semantics, while the binding remains sufficient to identify the bound runtime Ruleset realization.
 
@@ -186,7 +170,6 @@ Repo-spec source lineage and FS-004 realization binding shall be mechanically di
 
 **Classification: M**
 
-**State: Inactive**
 
 When FS-004 installs Ruleset-owned governance artifacts into the Dataset repository, the generated realization shall preserve enough Ruleset identity or traceability to determine their governing Ruleset source where consequential.
 
@@ -194,7 +177,6 @@ When FS-004 installs Ruleset-owned governance artifacts into the Dataset reposit
 
 **Classification: M**
 
-**State: Inactive**
 
 Every generated `split-git` Ruleset repository shall preserve executable root `scripts/validate` composition and repo-spec Validation surfaces installed by the selected initializer; after App Builder adapts the installed structural policy and adds application material, that canonical repository-wide Validation shall succeed.
 
@@ -202,7 +184,6 @@ Every generated `split-git` Ruleset repository shall preserve executable root `s
 
 **Classification: M**
 
-**State: Inactive**
 
 App Builder FS-004 Validation shall construct and evaluate generated candidate repository pairs and shall not treat successful file generation alone as evidence of conformance.
 
@@ -210,7 +191,6 @@ App Builder FS-004 Validation shall construct and evaluate generated candidate r
 
 **Classification: M**
 
-**State: Inactive**
 
 Equivalent resolved FS-004 build inputs, including the exact repo-spec source commit, shall produce byte-identical package-owned generated content and identical Git tree identity subject to the accepted FS-003 construction-time commit semantics.
 
@@ -224,6 +204,5 @@ A later repo-spec framework upgrade is a Ruleset-repository lifecycle operation;
 
 **Classification: B**
 
-**State: Inactive**
 
 FS-001, FS-002, and FS-003 remain applicable except where FS-004 deliberately strengthens the `split-git` Ruleset lifecycle contract. Existing runtime application, Ruleset, Dataset, application-owned binding-related fields, `init-config/`, provenance, save, provider, and Git construction semantics remain unchanged unless this specification explicitly states otherwise. FS-004 shall not infer new semantic meaning from arbitrary binding-looking source fields.

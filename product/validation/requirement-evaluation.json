@@ -291,6 +291,140 @@
       "tasks": [
         "structured-git-runtime"
       ]
+    },
+    {
+      "requirement": "FS-004-NR-002",
+      "tasks": [
+        "lifecycle-installation"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-003",
+      "tasks": [
+        "lifecycle-installation",
+        "generated-ruleset-lifecycle"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-004",
+      "tasks": [
+        "lifecycle-installation"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-005",
+      "tasks": [
+        "lifecycle-installation"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-006",
+      "tasks": [
+        "lifecycle-installation",
+        "generated-tree-determinism"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-008",
+      "tasks": [
+        "lifecycle-installation"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-009",
+      "tasks": [
+        "lifecycle-installation",
+        "generated-ruleset-lifecycle"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-011",
+      "tasks": [
+        "repo-spec-source"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-012",
+      "tasks": [
+        "repo-spec-source",
+        "repo-spec-provenance"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-016",
+      "tasks": [
+        "ruleset-binding"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-019",
+      "tasks": [
+        "lifecycle-installation"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-020",
+      "tasks": [
+        "generated-ruleset-lifecycle"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-022",
+      "tasks": [
+        "generated-ruleset-lifecycle"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-023",
+      "tasks": [
+        "split-repository-independence"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-024",
+      "tasks": [
+        "repo-spec-source",
+        "repo-spec-provenance"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-025",
+      "tasks": [
+        "ruleset-binding",
+        "repo-spec-provenance"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-026",
+      "tasks": [
+        "lifecycle-installation"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-027",
+      "tasks": [
+        "generated-ruleset-lifecycle"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-028",
+      "tasks": [
+        "generated-ruleset-lifecycle"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-029",
+      "tasks": [
+        "generated-tree-determinism"
+      ]
+    },
+    {
+      "requirement": "FS-004-NR-031",
+      "tasks": [
+        "lifecycle-installation",
+        "ruleset-binding",
+        "split-repository-independence"
+      ]
     }
   ],
   "build_tasks": []

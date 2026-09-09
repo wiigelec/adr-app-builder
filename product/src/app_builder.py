@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -14,7 +15,8 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "product" / "src" / "profiles"
 DEFAULT_ADR_REPOSITORY = "https://github.com/wiigelec/adr.git"
-FS002_PROFILES = {"single-file", "split-files", "single-git", "split-git"}
+DEFAULT_REPO_SPEC_REPOSITORY = "https://github.com/wiigelec/repo-spec.git"
+PACKAGED_PROFILES = {"single-file", "split-files", "single-git", "split-git"}
 
 GIT_IDENTITY = {
     "GIT_AUTHOR_NAME": "ADR App Builder",
@@ -269,6 +271,267 @@ def runtime_metadata_files(
     }
 
 
+def canonical_ruleset_sha256(ruleset) -> str:
+    encoded = json.dumps(
+        ruleset,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def ruleset_binding_files(application, dataset, ruleset):
+    return {
+        "binding.json": json_bytes(
+            {
+                "schema_version": 1,
+                "application_id": application["id"],
+                "instance_id": dataset["instance"]["id"],
+                "ruleset_authority": {
+                    "kind": "content-sha256",
+                    "sha256": canonical_ruleset_sha256(ruleset),
+                },
+            }
+        )
+    }
+
+
+def ruleset_repository_metadata_files(
+    application,
+    adr_repository: str,
+    adr_commit: str,
+    builder_repository: str,
+    builder_commit: str,
+    repo_spec_repository: str,
+    repo_spec_commit: str,
+):
+    files = runtime_metadata_files(
+        application,
+        adr_repository,
+        adr_commit,
+        builder_repository,
+        builder_commit,
+    )
+    provenance = json.loads(files["provenance.json"].decode("utf-8"))
+    provenance["repo_spec"] = {
+        "repository": normalize_repository_identity(repo_spec_repository),
+        "commit": repo_spec_commit,
+    }
+    files["provenance.json"] = json_bytes(provenance)
+    return files
+
+
+def dataset_repository_guidance_files(profile_id: str, component_refs):
+    files = guidance_files(profile_id, "dataset", component_refs)
+    files["README.md"] += (
+        b"\n## Ruleset realization binding\n\n"
+        b"`binding.json` determinately identifies the exact external Ruleset realization "
+        b"bound to this application instance. It is realization metadata, not Ruleset "
+        b"semantic authority, construction provenance, Git history, or Dataset state.\n"
+    )
+    files["AGENTS.md"] += (
+        b"\n`binding.json` identifies the applicable external Ruleset realization. "
+        b"Preserve it unchanged during ordinary Dataset saves. Do not treat it as "
+        b"owning or redefining Ruleset semantics.\n"
+    )
+    return files
+
+
+def resolve_repo_spec_main(repository: str) -> str:
+    p = subprocess.run(
+        ["git", "ls-remote", repository, "refs/heads/main"],
+        text=True,
+        capture_output=True,
+    )
+    if p.returncode != 0:
+        raise SystemExit("unable to resolve repo-spec main: " + p.stderr.strip())
+    lines = [line for line in p.stdout.splitlines() if line.strip()]
+    if len(lines) != 1:
+        raise SystemExit("repo-spec main did not resolve to exactly one reference")
+    parts = lines[0].split()
+    if len(parts) != 2 or parts[1] != "refs/heads/main" or len(parts[0]) != 40:
+        raise SystemExit("repo-spec main did not resolve to one exact commit")
+    return parts[0]
+
+
+def fetch_repo_spec_checkout(repository: str, commit: str, checkout: Path) -> None:
+    checkout.mkdir(parents=True, exist_ok=False)
+    subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+    p = subprocess.run(
+        ["git", "fetch", "-q", "--depth=1", repository, commit],
+        cwd=checkout,
+        text=True,
+        capture_output=True,
+    )
+    if p.returncode != 0:
+        raise SystemExit("unable to fetch exact repo-spec source: " + p.stderr.strip())
+    fetched = subprocess.run(
+        ["git", "rev-parse", "FETCH_HEAD"],
+        cwd=checkout,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+    if fetched != commit:
+        raise SystemExit(f"repo-spec source fetch mismatch: expected {commit}, observed {fetched}")
+    p = subprocess.run(
+        ["git", "checkout", "-q", "-B", "main", "FETCH_HEAD"],
+        cwd=checkout,
+        text=True,
+        capture_output=True,
+    )
+    if p.returncode != 0:
+        raise SystemExit("unable to establish accepted repo-spec main checkout: " + p.stderr.strip())
+    observed = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=checkout, text=True, capture_output=True, check=True
+    ).stdout.strip()
+    if observed != commit:
+        raise SystemExit("repo-spec source checkout changed resolved revision")
+
+
+def adapt_ruleset_structure_policy(repo: Path, rules_ref) -> None:
+    policy_path = repo / "repo" / "validation" / "structure-policy.json"
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        root_files = set(policy["root"]["files"])
+        root_dirs = set(policy["root"]["directories"])
+    except Exception as exc:
+        raise SystemExit(f"installed repo-spec structural policy has unsupported shape: {exc}")
+
+    root_files.update({"application.json", "binding.json", "provenance.json"})
+    root_dirs.add("init-config")
+    if rules_ref["kind"] == "file" and rules_ref["path"] == "ruleset.json":
+        root_files.add("ruleset.json")
+    elif rules_ref["kind"] == "tree" and rules_ref["path"] == "ruleset":
+        root_dirs.add("ruleset")
+    else:
+        raise SystemExit("unsupported FS-004 Ruleset runtime root role")
+
+    policy["root"]["files"] = sorted(root_files)
+    policy["root"]["directories"] = sorted(root_dirs)
+    policy_path.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+
+
+def extend_initialized_ruleset_guidance(repo: Path, component_refs) -> None:
+    locations = "\n".join(
+        f"- {name}: `{ref['path']}` ({ref['kind']})"
+        for name, ref in sorted(component_refs.items())
+        if name not in {"provenance", "binding"}
+    )
+    readme = repo / "README.md"
+    readme.write_text(
+        readme.read_text(encoding="utf-8")
+        + "\n## App Builder runtime realization\n\n"
+        + "This repo-spec-managed repository is the Ruleset product-development home "
+          "for an ADR App Builder `split-git` realization. The installed lifecycle "
+          "does not redefine application-owned Ruleset meaning.\n\n"
+        + "## Runtime components\n\n"
+        + locations
+        + "## Initialization inputs\n\n"
+        + "`init-config/` contains immutable construction inputs and reproduces the "
+          "App Builder construction invocation. It is not runtime semantic authority.\n\n"
+        + "\n\n## Binding\n\n"
+        + "`binding.json` determinately identifies the exact Ruleset realization "
+          "bound to the paired application instance. It is not semantic authority, "
+          "construction provenance, Dataset state, or Git identity.\n\n"
+        + "## Provenance\n\n"
+        + "`provenance.json` records ADR, App Builder, and repo-spec construction lineage "
+          "and upgrade anchors. It is not a runtime component or semantic authority.\n",
+        encoding="utf-8",
+    )
+    agents = repo / "AGENTS.md"
+    agents.write_text(
+        agents.read_text(encoding="utf-8")
+        + "\n## App Builder runtime realization\n\n"
+        + "Read the local runtime application definition in `application.json` and apply its "
+          "application-owned initialization instructions before operating the realization. "
+          "The local runtime Ruleset defines applicable behavior; persisted Dataset state is "
+          "external to this repository.\n\n"
+        + "Preserve runtime `application.json`, runtime Ruleset material, `binding.json`, "
+          "`provenance.json`, and `init-config/` as distinct roles. The local runtime "
+          "Ruleset is the accepted operational realization; repo-spec `product/` is the "
+          "development domain for later Ruleset product work.\n\n"
+        + "Do not invent application-specific Product Design, Dataset schema, compatibility, "
+          "migration, or validation meaning from the generic initialized scaffold. "
+          "Ordinary Dataset saves belong in the paired Dataset repository and must not "
+          "mutate this Ruleset repository.\n",
+        encoding="utf-8",
+    )
+
+
+def finalize_initialized_ruleset_repo(repo: Path, files: dict[str, bytes], rules_ref, component_refs) -> None:
+    adapt_ruleset_structure_policy(repo, rules_ref)
+    for relative, content in files.items():
+        path = repo / relative
+        if path.exists():
+            raise SystemExit(f"FS-004 App Builder path collides with initialized repo-spec state: {relative}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    extend_initialized_ruleset_guidance(repo, component_refs)
+    run_git(repo, ["add", "-A"])
+    validator = repo / "scripts" / "validate"
+    validation = subprocess.run(
+        [str(validator)], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    if validation.returncode != 0:
+        detail = validation.stderr.strip() or validation.stdout.strip()
+        raise SystemExit("generated Ruleset repository Validation failed: " + detail)
+
+    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    commit_env = {**GIT_IDENTITY, "GIT_AUTHOR_DATE": created_at, "GIT_COMMITTER_DATE": created_at}
+    run_git(
+        repo,
+        ["commit", "-q", "--amend", "--reset-author", "-m", GIT_INITIAL_MESSAGE],
+        env_extra=commit_env,
+    )
+    validation = subprocess.run(
+        [str(validator)], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    if validation.returncode != 0:
+        detail = validation.stderr.strip() or validation.stdout.strip()
+        raise SystemExit("final generated Ruleset repository Validation failed: " + detail)
+    if run_git(repo, ["status", "--porcelain=v1", "--untracked-files=all"]).stdout.splitlines():
+        raise SystemExit("generated Ruleset repository is dirty after final Validation")
+
+
+def initialize_ruleset_repository(
+    destination: Path,
+    repo_spec_repository: str,
+    repo_spec_commit: str,
+    files: dict[str, bytes],
+    rules_ref,
+    component_refs,
+) -> None:
+    with tempfile.TemporaryDirectory(prefix="adr-app-builder-repo-spec-") as tmp:
+        checkout = Path(tmp) / "repo-spec"
+        fetch_repo_spec_checkout(repo_spec_repository, repo_spec_commit, checkout)
+        cli = checkout / "product" / "scripts" / "repo-spec"
+        if not cli.is_file():
+            raise SystemExit("selected repo-spec revision lacks accepted initializer CLI")
+        initialized = subprocess.run(
+            [sys.executable, str(cli), "init", "--repo", str(destination)],
+            cwd=checkout,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if initialized.returncode != 0:
+            detail = initialized.stderr.strip() or initialized.stdout.strip()
+            raise SystemExit("repo-spec initializer failed: " + detail)
+
+    source_record = destination / "repo" / "validation" / "framework-source.json"
+    try:
+        installed_revision = json.loads(source_record.read_text(encoding="utf-8"))["repo_spec_source_revision"]
+    except Exception as exc:
+        raise SystemExit(f"initialized repo-spec source record is invalid: {exc}")
+    if installed_revision != repo_spec_commit:
+        raise SystemExit(
+            f"initialized repo-spec revision mismatch: expected {repo_spec_commit}, observed {installed_revision}"
+        )
+    finalize_initialized_ruleset_repo(destination, files, rules_ref, component_refs)
+
+
 def guidance_files(profile_id: str, role: str, component_refs):
     locations = "\n".join(
         f"- {name}: `{ref['path']}` ({ref['kind']})"
@@ -508,7 +771,7 @@ def validate_sources(application, ruleset, dataset, build):
         raise SystemExit("build.providers must be a non-empty unique string list")
 
 
-def validate_fs002_profile(packaging, profile_id: str):
+def validate_packaging_profile(packaging, profile_id: str):
     if packaging.get("id") != profile_id:
         raise SystemExit(f"invalid FS-002 packaging profile id: {profile_id}")
     if packaging.get("package_type") != "ruleset-dataset":
@@ -560,7 +823,7 @@ def init_git_repo(repo: Path, files: dict[str, bytes]) -> None:
     run_git(repo, ["commit", "-q", "-m", GIT_INITIAL_MESSAGE], env_extra=commit_env)
 
 
-def build_fs002_package(
+def build_package(
     output_dir: Path,
     profile_id: str,
     application,
@@ -572,6 +835,7 @@ def build_fs002_package(
     adr_commit: str,
     builder_repository: str,
     builder_commit: str,
+    repo_spec_repository: str,
 ) -> dict:
     package_dir = output_dir / "package"
     if package_dir.exists():
@@ -642,22 +906,24 @@ def build_fs002_package(
         }
 
     if profile_id == "split-git":
-        init_git_repo(
+        repo_spec_commit = resolve_repo_spec_main(repo_spec_repository)
+        binding_files = ruleset_binding_files(application, dataset, ruleset)
+        ruleset_metadata = ruleset_repository_metadata_files(
+            application,
+            adr_repository,
+            adr_commit,
+            builder_repository,
+            builder_commit,
+            repo_spec_repository,
+            repo_spec_commit,
+        )
+        initialize_ruleset_repository(
             package_dir / "ruleset",
-            merge_files(
-                init_files,
-                runtime_metadata,
-                rules_files,
-                guidance_files(
-                    profile_id,
-                    "ruleset",
-                    {
-                        "application": application_ref,
-                        "ruleset": rules_ref,
-                        "provenance": provenance_ref,
-                    },
-                ),
-            ),
+            repo_spec_repository,
+            repo_spec_commit,
+            merge_files(init_files, ruleset_metadata, rules_files, binding_files),
+            rules_ref,
+            {"application": application_ref, "ruleset": rules_ref, "provenance": provenance_ref},
         )
         init_git_repo(
             package_dir / "dataset",
@@ -665,14 +931,10 @@ def build_fs002_package(
                 init_files,
                 runtime_metadata,
                 dataset_files,
-                guidance_files(
+                binding_files,
+                dataset_repository_guidance_files(
                     profile_id,
-                    "dataset",
-                    {
-                        "application": application_ref,
-                        "dataset": dataset_ref,
-                        "provenance": provenance_ref,
-                    },
+                    {"application": application_ref, "dataset": dataset_ref, "provenance": provenance_ref},
                 ),
             ),
         )
@@ -729,7 +991,7 @@ def build_legacy(application, ruleset, dataset, build, packaging, adr_commit, bu
         write_json(output_dir / f"{provider_id}.json", artifact)
 
 
-def build_fs002(
+def build_packaged_realization(
     application,
     ruleset,
     dataset,
@@ -739,11 +1001,12 @@ def build_fs002(
     adr_commit,
     builder_repository,
     builder_commit,
+    repo_spec_repository,
     output_dir: Path,
     input_paths,
 ):
-    validate_fs002_profile(packaging, build["packaging_profile"])
-    package_reference = build_fs002_package(
+    validate_packaging_profile(packaging, build["packaging_profile"])
+    package_reference = build_package(
         output_dir,
         build["packaging_profile"],
         application,
@@ -755,6 +1018,7 @@ def build_fs002(
         adr_commit,
         builder_repository,
         builder_commit,
+        repo_spec_repository,
     )
 
     providers_dir = output_dir / "providers"
@@ -788,6 +1052,7 @@ def main():
     parser.add_argument("--build", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--adr-repository", default=DEFAULT_ADR_REPOSITORY)
+    parser.add_argument("--repo-spec-repository", default=DEFAULT_REPO_SPEC_REPOSITORY)
     args = parser.parse_args()
 
     application = load(args.application)
@@ -806,8 +1071,8 @@ def main():
         raise SystemExit("output directory must be absent or empty")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    if build["packaging_profile"] in FS002_PROFILES:
-        build_fs002(
+    if build["packaging_profile"] in PACKAGED_PROFILES:
+        build_packaged_realization(
             application,
             ruleset,
             dataset,
@@ -817,6 +1082,7 @@ def main():
             adr_commit,
             builder_repository,
             builder_commit,
+            args.repo_spec_repository,
             args.output_dir,
             {
                 "application": args.application,

@@ -19,7 +19,7 @@ BUILDER = ROOT / "product" / "src" / "app_builder.py"
 PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
-FS002_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
+PACKAGED_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 CANDIDATE_ENV = "ADR_APP_BUILDER_VALIDATION_COMMITTED_CANDIDATE"
 
 def worktree_changes():
@@ -181,6 +181,7 @@ def run_build(
     application_path: Path | None = None,
     ruleset_path: Path | None = None,
     dataset_path: Path | None = None,
+    repo_spec_repository: Path | str | None = None,
     check: bool = True,
 ):
     cmd = [
@@ -199,6 +200,11 @@ def run_build(
         "--adr-repository",
         str(adr_repository),
     ]
+    profile_id = read_json(build_path).get("packaging_profile")
+    if repo_spec_repository is None and profile_id == "split-git":
+        repo_spec_repository, _ = validation_repo_spec_fixture()
+    if repo_spec_repository is not None:
+        cmd.extend(["--repo-spec-repository", str(repo_spec_repository)])
     cp = subprocess.run(
         cmd,
         cwd=ROOT,
@@ -400,21 +406,27 @@ def validate_single_git(out: Path, rules, dataset):
 def validate_split_git(out: Path, rules, dataset):
     rules_repo = out / "package" / "ruleset"
     dataset_repo = out / "package" / "dataset"
-    expected_rules = [
+    required_rules = {
         "AGENTS.md",
         "README.md",
         "application.json",
+        "binding.json",
         "init-config/application.json",
         "init-config/build.json",
         "init-config/dataset.json",
         "init-config/ruleset.json",
         "provenance.json",
         "ruleset.json",
-    ]
+        "repo/validation/structure-policy.json",
+        "repo/validation/framework-source.json",
+        "scripts/validate",
+        "product/design/README.md",
+    }
     expected_dataset = [
         "AGENTS.md",
         "README.md",
         "application.json",
+        "binding.json",
         "dataset.json",
         "init-config/application.json",
         "init-config/build.json",
@@ -422,8 +434,11 @@ def validate_split_git(out: Path, rules, dataset):
         "init-config/ruleset.json",
         "provenance.json",
     ]
-    if repo_files(rules_repo) != expected_rules or repo_files(dataset_repo) != expected_dataset:
+    observed_rules = set(repo_files(rules_repo))
+    if not required_rules <= observed_rules or repo_files(dataset_repo) != expected_dataset:
         raise SystemExit("FAIL: split-git worktree shape")
+    if any(path == "dataset.json" or path.startswith("dataset/") for path in observed_rules):
+        raise SystemExit("FAIL: split-git Ruleset repository contains Dataset runtime state")
     if read_json(rules_repo / "ruleset.json") != rules or read_json(dataset_repo / "dataset.json") != dataset:
         raise SystemExit("FAIL: split-git source fidelity")
     if git(rules_repo, "remote") or git(dataset_repo, "remote"):
@@ -487,7 +502,7 @@ def compare_initial(profile: str, a: Path, b: Path):
                 raise SystemExit(f"FAIL: split-git generated tree determinism {name}")
 
 
-def validate_fs001(app, rules, dataset, adr, builder, adr_repository: Path):
+def validate_core_realization(app, rules, dataset, adr, builder, adr_repository: Path):
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         pa, pb = Path(a), Path(b)
         run_build(pa, BASE / "build.json", adr_repository)
@@ -624,13 +639,13 @@ def task_profile_contracts():
         if normalize_repository_identity(raw) != expected:
             raise SystemExit(f"FAIL: App Builder repository identity normalization {raw}")
 
-    expected_fs002 = {
+    expected_packaged_profiles = {
         "single-file": ("file", "single"),
         "split-files": ("file", "split"),
         "single-git": ("git", "single"),
         "split-git": ("git", "split"),
     }
-    for profile_id, (storage, topology) in expected_fs002.items():
+    for profile_id, (storage, topology) in expected_packaged_profiles.items():
         value = read_json(PROFILES_ROOT / f"{profile_id}.json")
         if value.get("id") != profile_id:
             raise SystemExit(f"FAIL: packaging profile id {profile_id}")
@@ -685,7 +700,7 @@ def task_core_realization():
 
     with tempfile.TemporaryDirectory() as tmp:
         adr_repository, adr = create_adr_fixture(Path(tmp))
-        validate_fs001(app, rules, dataset, adr, builder, adr_repository)
+        validate_core_realization(app, rules, dataset, adr, builder, adr_repository)
 
     assert_source_snapshot(before)
 
@@ -764,7 +779,7 @@ def task_source_input_contracts():
         expect_build_failure("unknown provider profile", adr_repository, build=bad_build)
 
 
-def validate_fs002_group(profiles):
+def validate_packaging_group(profiles):
     before = source_snapshot(["application.json", "ruleset.json", "dataset.json"])
     application = read_json(BASE / "application.json")
     rules = read_json(BASE / "ruleset.json")
@@ -818,12 +833,12 @@ def validate_fs002_group(profiles):
 
 def task_file_packaging():
     require_clean_tree()
-    validate_fs002_group(["single-file", "split-files"])
+    validate_packaging_group(["single-file", "split-files"])
 
 
 def task_git_packaging():
     require_clean_tree()
-    validate_fs002_group(["single-git", "split-git"])
+    validate_packaging_group(["single-git", "split-git"])
 
 
 def task_provider_independence():
@@ -834,7 +849,7 @@ def task_provider_independence():
         adr_repository, _ = create_adr_fixture(root)
         configs = root / "configs"
         configs.mkdir()
-        for profile in FS002_PROFILES:
+        for profile in PACKAGED_PROFILES:
             validate_provider_selection_independence(profile, adr_repository, configs)
     assert_source_snapshot(before)
 
@@ -923,8 +938,12 @@ def assert_runtime_metadata(
             "commit": builder_commit,
         },
     }
-    if read_json(repo / "provenance.json") != expected_provenance:
-        raise SystemExit("FAIL: runtime provenance fidelity")
+    observed_provenance = read_json(repo / "provenance.json")
+    for key, value in expected_provenance.items():
+        if observed_provenance.get(key) != value:
+            raise SystemExit("FAIL: runtime provenance fidelity")
+    if set(observed_provenance) - set(expected_provenance) not in (set(), {"repo_spec"}):
+        raise SystemExit("FAIL: unexpected runtime provenance role")
     agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
     if "runtime application definition" not in agents:
         raise SystemExit("FAIL: AGENTS does not direct runtime application initialization")
@@ -1212,6 +1231,450 @@ def task_structured_git_runtime():
         if sha(path) != digest:
             raise SystemExit(f"FAIL: FS-003 source mutated {path.relative_to(ROOT)}")
 
+_REPO_SPEC_FIXTURE_ROOT = None
+_REPO_SPEC_FIXTURE_REPO = None
+_REPO_SPEC_FIXTURE_COMMIT = None
+
+
+def validation_repo_spec_fixture():
+    global _REPO_SPEC_FIXTURE_ROOT, _REPO_SPEC_FIXTURE_REPO, _REPO_SPEC_FIXTURE_COMMIT
+    if _REPO_SPEC_FIXTURE_REPO is not None:
+        return _REPO_SPEC_FIXTURE_REPO, _REPO_SPEC_FIXTURE_COMMIT
+
+    _REPO_SPEC_FIXTURE_ROOT = Path(tempfile.mkdtemp(prefix="adr-app-builder-repo-spec-fixture-"))
+    repo = _REPO_SPEC_FIXTURE_ROOT / "repo-spec"
+    repo.mkdir()
+    git(repo, "init", "-q", "-b", "main")
+
+    (repo / ".github" / "workflows").mkdir(parents=True)
+    (repo / ".github" / "workflows" / "validation.yml").write_text(
+        "name: Validation\non: [push, pull_request]\njobs:\n"
+        "  validate:\n    runs-on: ubuntu-latest\n    steps:\n"
+        "      - uses: actions/checkout@v4\n      - run: scripts/validate\n",
+        encoding="utf-8",
+    )
+    (repo / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("# Repository Agent Guidance\n\nUse repo-spec lifecycle.\n", encoding="utf-8")
+    (repo / "README.md").write_text("# Repository\n\nInstalled repo-spec lifecycle framework.\n", encoding="utf-8")
+    (repo / "LICENSE").write_text("fixture\n", encoding="utf-8")
+
+    for role in ["design", "specs", "src", "scripts", "validation"]:
+        (repo / "repo" / role).mkdir(parents=True, exist_ok=True)
+    (repo / "repo" / "design" / "README.md").write_text("fixture design\n", encoding="utf-8")
+    (repo / "repo" / "specs" / "README.md").write_text("fixture specs\n", encoding="utf-8")
+    (repo / "repo" / "src" / "fixture-marker.txt").write_text("repo-spec validation fixture\n", encoding="utf-8")
+
+    policy = {
+        "version": 1,
+        "root": {
+            "files": [".gitignore", "AGENTS.md", "LICENSE", "README.md"],
+            "directories": [".github", "product", "repo", "scripts", "user"],
+        },
+        "repo": {"directories": ["design", "planning", "scripts", "specs", "src", "validation"]},
+        "product": {
+            "directories": ["design", "planning", "scripts", "specs", "src", "validation"],
+            "required_when_present": ["design", "scripts", "specs", "validation"],
+        },
+    }
+    (repo / "repo" / "validation" / "structure-policy.json").write_text(
+        json.dumps(policy, indent=2) + "\n", encoding="utf-8"
+    )
+
+    validator_text = r'''#!/usr/bin/env python3
+import json
+import subprocess
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[2]
+POLICY = ROOT / "repo" / "validation" / "structure-policy.json"
+def fail(message):
+    print("FAIL repository-structure: " + message, file=sys.stderr)
+    raise SystemExit(1)
+try:
+    policy = json.loads(POLICY.read_text(encoding="utf-8"))
+except Exception as exc:
+    fail("structural policy: " + str(exc))
+if set(policy) != {"version", "root", "repo", "product"} or policy.get("version") != 1:
+    fail("invalid structural policy")
+root_files = set(policy["root"]["files"])
+root_dirs = set(policy["root"]["directories"])
+repo_dirs = set(policy["repo"]["directories"])
+product_dirs = set(policy["product"]["directories"])
+required = set(policy["product"]["required_when_present"])
+if not required <= product_dirs:
+    fail("invalid required product roles")
+paths = subprocess.run(
+    ["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT,
+    text=True, stdout=subprocess.PIPE, check=True,
+).stdout.splitlines()
+product_children = set()
+for value in paths:
+    parts = value.split("/")
+    if len(parts) == 1:
+        if value not in root_files:
+            fail("undeclared root file: " + value)
+        continue
+    if parts[0] not in root_dirs:
+        fail("undeclared root directory: " + parts[0])
+    if parts[0] == "repo":
+        if len(parts) < 3 or parts[1] not in repo_dirs:
+            fail("undeclared repo role: " + (parts[1] if len(parts) > 1 else ""))
+    if parts[0] == "product":
+        if len(parts) < 3 or parts[1] not in product_dirs:
+            fail("undeclared product role: " + (parts[1] if len(parts) > 1 else ""))
+        product_children.add(parts[1])
+if product_children:
+    missing = sorted(required - product_children)
+    if missing:
+        fail("product/ is missing required baseline roles: " + repr(missing))
+print("PASS repository-structure")
+'''
+    framework_validator = repo / "repo" / "validation" / "validate_framework.py"
+    framework_validator.write_text(validator_text, encoding="utf-8")
+    framework_validator.chmod(0o755)
+
+    repo_validate = repo / "repo" / "scripts" / "validate"
+    repo_validate.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"\n'
+        'exec python3 "$root/repo/validation/validate_framework.py"\n',
+        encoding="utf-8",
+    )
+    repo_validate.chmod(0o755)
+
+    root_validate = repo / "scripts" / "validate"
+    root_validate.parent.mkdir(parents=True)
+    root_validate.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
+        '"$root/repo/scripts/validate"\n"$root/product/scripts/validate"\n',
+        encoding="utf-8",
+    )
+    root_validate.chmod(0o755)
+
+    cli = repo / "product" / "scripts" / "repo-spec"
+    cli.parent.mkdir(parents=True)
+    cli_text = r'''#!/usr/bin/env python3
+from __future__ import annotations
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+SOURCE = Path(__file__).resolve().parents[2]
+def run(cmd, cwd, check=True):
+    cp = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if check and cp.returncode:
+        raise RuntimeError(cp.stderr.strip() or cp.stdout.strip())
+    return cp
+def main():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command", required=True)
+    init = sub.add_parser("init")
+    init.add_argument("--repo", required=True)
+    args = parser.parse_args()
+    head = run(["git", "rev-parse", "HEAD"], SOURCE).stdout.strip()
+    main_head = run(["git", "rev-parse", "refs/heads/main"], SOURCE).stdout.strip()
+    if head != main_head:
+        print("repo-spec init: supplying revision is not accepted main", file=sys.stderr)
+        return 1
+    if run(["git", "status", "--porcelain=v1", "--untracked-files=all"], SOURCE).stdout.splitlines():
+        print("repo-spec init: supplying checkout is dirty", file=sys.stderr)
+        return 1
+    dest = Path(args.repo).resolve()
+    if dest.exists() and any(dest.iterdir()):
+        print("repo-spec init: destination not empty", file=sys.stderr)
+        return 1
+    dest.mkdir(parents=True, exist_ok=True)
+    run(["git", "init", "-q", "-b", "main"], dest)
+    for rel in [".github", ".gitignore", "AGENTS.md", "LICENSE", "README.md", "repo", "scripts"]:
+        src = SOURCE / rel
+        dst = dest / rel
+        if src.is_dir(): shutil.copytree(src, dst)
+        else: shutil.copy2(src, dst)
+    design = dest / "product" / "design" / "README.md"
+    specs = dest / "product" / "specs" / "README.md"
+    pscript = dest / "product" / "scripts" / "validate"
+    pmanifest = dest / "product" / "validation" / "requirement-evaluation.json"
+    pvalidator = dest / "product" / "validation" / "validate_product.py"
+    design.parent.mkdir(parents=True, exist_ok=True)
+    specs.parent.mkdir(parents=True, exist_ok=True)
+    pscript.parent.mkdir(parents=True, exist_ok=True)
+    pmanifest.parent.mkdir(parents=True, exist_ok=True)
+    design.write_text("# Product Design\n\nGeneric scaffold only.\n", encoding="utf-8")
+    specs.write_text("# Product Specifications\n\nGeneric scaffold only.\n", encoding="utf-8")
+    pscript.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"\n'
+        'exec python3 "$root/product/validation/validate_product.py"\n',
+        encoding="utf-8",
+    )
+    pscript.chmod(0o755)
+    pmanifest.write_text('{"version":1,"bindings":[]}\n', encoding="utf-8")
+    pvalidator.write_text("#!/usr/bin/env python3\nprint('Product Validation: PASS')\n", encoding="utf-8")
+    pvalidator.chmod(0o755)
+    record = dest / "repo" / "validation" / "framework-source.json"
+    record.write_text(json.dumps({"schema_version":"1","repo_spec_source_revision":head}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    run(["git", "add", "-A"], dest)
+    run(["git", "-c", "user.name=repo-spec initializer", "-c", "user.email=repo-spec@local.invalid", "commit", "-q", "-m", "Initialize repo-spec repository"], dest)
+    validation = run([str(dest / "scripts" / "validate")], dest, check=False)
+    if validation.returncode:
+        print("repo-spec init: validation failed: " + (validation.stderr.strip() or validation.stdout.strip()), file=sys.stderr)
+        return 1
+    print("Source revision: " + head)
+    return 0
+raise SystemExit(main())
+'''
+    cli.write_text(cli_text, encoding="utf-8")
+    cli.chmod(0o755)
+
+    git(repo, "add", "-A")
+    git(
+        repo, "commit", "-q", "-m", "Accepted repo-spec fixture",
+        env_extra={
+            "GIT_AUTHOR_NAME": "repo-spec Validation Fixture",
+            "GIT_AUTHOR_EMAIL": "repo-spec-fixture@adr.invalid",
+            "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
+            "GIT_COMMITTER_NAME": "repo-spec Validation Fixture",
+            "GIT_COMMITTER_EMAIL": "repo-spec-fixture@adr.invalid",
+            "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+00:00",
+        },
+    )
+    commit = git(repo, "rev-parse", "HEAD")
+    _REPO_SPEC_FIXTURE_REPO = repo
+    _REPO_SPEC_FIXTURE_COMMIT = commit
+    return repo, commit
+
+
+def build_repo_spec_split_realization(root: Path, *, structured: bool = False, providers=None, application=None):
+    adr_repository, adr_commit = create_adr_fixture(root)
+    repo_spec_repository, repo_spec_commit = validation_repo_spec_fixture()
+    configs = root / "fs004-configs"
+    configs.mkdir(parents=True, exist_ok=True)
+    if structured:
+        build_value = structured_build_value("split-git", providers or PROVIDERS)
+        build_path = configs / "build.json"
+        build_path.write_text(json.dumps(build_value, indent=2) + "\n", encoding="utf-8")
+        application_path = STRUCTURED_BASE / "application.json"
+        ruleset_path = STRUCTURED_BASE / "ruleset.json"
+        dataset_path = STRUCTURED_BASE / "dataset.json"
+    else:
+        build_path = configs / "build.json"
+        write_build(build_path, "split-git")
+        if providers is not None:
+            value = read_json(build_path)
+            value["providers"] = providers
+            build_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+        application_path = BASE / "application.json"
+        ruleset_path = BASE / "ruleset.json"
+        dataset_path = BASE / "dataset.json"
+    if application is not None:
+        application_path = configs / "application.json"
+        application_path.write_text(json.dumps(application, indent=2) + "\n", encoding="utf-8")
+    out = root / "out"
+    run_build(
+        out, build_path, adr_repository,
+        application_path=application_path,
+        ruleset_path=ruleset_path,
+        dataset_path=dataset_path,
+        repo_spec_repository=repo_spec_repository,
+    )
+    return {
+        "out": out,
+        "adr_repository": adr_repository,
+        "adr_commit": adr_commit,
+        "repo_spec_repository": repo_spec_repository,
+        "repo_spec_commit": repo_spec_commit,
+        "build_path": build_path,
+        "application_path": application_path,
+        "ruleset_path": ruleset_path,
+        "dataset_path": dataset_path,
+    }
+
+
+def task_repo_spec_source():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        state = build_repo_spec_split_realization(Path(tmp))
+        rules_repo = state["out"] / "package" / "ruleset"
+        record = read_json(rules_repo / "repo" / "validation" / "framework-source.json")
+        if record.get("repo_spec_source_revision") != state["repo_spec_commit"]:
+            raise SystemExit("FAIL: FS-004 initialized framework source revision")
+        if not (rules_repo / "repo" / "src" / "fixture-marker.txt").is_file():
+            raise SystemExit("FAIL: FS-004 initialized framework correspondence")
+        provenance = read_json(rules_repo / "provenance.json")
+        expected = {"repository": normalize_repository_identity(str(state["repo_spec_repository"])), "commit": state["repo_spec_commit"]}
+        if provenance.get("repo_spec") != expected:
+            raise SystemExit("FAIL: FS-004 repo-spec source provenance truthfulness")
+
+
+def task_lifecycle_installation():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        state = build_repo_spec_split_realization(root)
+        rules_repo = state["out"] / "package" / "ruleset"
+        dataset_repo = state["out"] / "package" / "dataset"
+        for required in [
+            "repo/validation/structure-policy.json", "repo/validation/framework-source.json",
+            "repo/scripts/validate", "scripts/validate", ".github/workflows/validation.yml",
+            "product/design/README.md", "product/specs/README.md", "product/scripts/validate",
+            "product/validation/validate_product.py",
+        ]:
+            if not (rules_repo / required).is_file():
+                raise SystemExit(f"FAIL: FS-004 Ruleset lifecycle installation {required}")
+        for forbidden in ["repo", "product", "scripts/validate", ".github/workflows/validation.yml"]:
+            if (dataset_repo / forbidden).exists():
+                raise SystemExit(f"FAIL: FS-004 Dataset lifecycle exclusion {forbidden}")
+        policy = read_json(rules_repo / "repo" / "validation" / "structure-policy.json")
+        expected_files = {"application.json", "binding.json", "provenance.json", "ruleset.json"}
+        if not expected_files <= set(policy["root"]["files"]):
+            raise SystemExit("FAIL: FS-004 file Ruleset policy adaptation")
+        if "init-config" not in set(policy["root"]["directories"]):
+            raise SystemExit("FAIL: FS-004 init-config policy adaptation")
+        with tempfile.TemporaryDirectory() as structured_tmp:
+            structured = build_repo_spec_split_realization(Path(structured_tmp), structured=True)
+            structured_policy = read_json(structured["out"] / "package" / "ruleset" / "repo" / "validation" / "structure-policy.json")
+            if "ruleset" not in set(structured_policy["root"]["directories"]):
+                raise SystemExit("FAIL: FS-004 tree Ruleset policy adaptation")
+            if "ruleset.json" in set(structured_policy["root"]["files"]):
+                raise SystemExit("FAIL: FS-004 tree policy retained wrong file role")
+        non_split = root / "non-split"
+        non_split.mkdir()
+        adr_repository, _ = create_adr_fixture(non_split)
+        build_path = root / "non-split-build.json"
+        write_build(build_path, "single-git")
+        out = root / "non-split-out"
+        run_build(out, build_path, adr_repository, repo_spec_repository=root / "intentionally-missing-repo-spec")
+        single = out / "package" / "repository"
+        if (single / "repo").exists() or (single / "binding.json").exists():
+            raise SystemExit("FAIL: FS-004 changed non-split lifecycle behavior")
+
+
+def task_ruleset_binding():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        application = read_json(BASE / "application.json")
+        application["ruleset_binding"] = {"opaque": "preserve-me"}
+        state = build_repo_spec_split_realization(Path(tmp), application=application)
+        rules_repo = state["out"] / "package" / "ruleset"
+        dataset_repo = state["out"] / "package" / "dataset"
+        if (rules_repo / "binding.json").read_bytes() != (dataset_repo / "binding.json").read_bytes():
+            raise SystemExit("FAIL: FS-004 binding byte identity")
+        ruleset = read_json(BASE / "ruleset.json")
+        canonical = json.dumps(ruleset, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        expected_digest = hashlib.sha256(canonical).hexdigest()
+        expected = {
+            "schema_version": 1,
+            "application_id": application["id"],
+            "instance_id": read_json(BASE / "dataset.json")["instance"]["id"],
+            "ruleset_authority": {"kind": "content-sha256", "sha256": expected_digest},
+        }
+        if read_json(rules_repo / "binding.json") != expected:
+            raise SystemExit("FAIL: FS-004 determinate Ruleset binding")
+        if read_json(rules_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
+            raise SystemExit("FAIL: FS-004 application-owned binding field preservation")
+        if read_json(dataset_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
+            raise SystemExit("FAIL: FS-004 Dataset application-owned binding field preservation")
+
+
+def task_generated_ruleset_lifecycle():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        state = build_repo_spec_split_realization(Path(tmp))
+        repo = state["out"] / "package" / "ruleset"
+        cp = subprocess.run([str(repo / "scripts" / "validate")], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if cp.returncode != 0:
+            raise SystemExit("FAIL: FS-004 generated canonical Ruleset Validation: " + (cp.stderr.strip() or cp.stdout.strip()))
+        verify_git_initial_history(repo, "FS-004 initialized Ruleset repository")
+        if git(repo, "rev-list", "--count", "HEAD") != "1":
+            raise SystemExit("FAIL: FS-004 must preserve one initial construction commit")
+        readme = (repo / "README.md").read_text(encoding="utf-8")
+        agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
+        if "repo-spec-managed" not in readme:
+            raise SystemExit("FAIL: FS-004 combined Ruleset README lifecycle guidance")
+        for token in ["binding.json", "runtime Ruleset", "repo-spec `product/`"]:
+            if token not in agents:
+                raise SystemExit(f"FAIL: FS-004 combined Ruleset AGENTS guidance {token}")
+
+
+def task_split_repository_independence():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        state = build_repo_spec_split_realization(Path(tmp))
+        rules_repo = state["out"] / "package" / "ruleset"
+        dataset_repo = state["out"] / "package" / "dataset"
+        rules_head = git(rules_repo, "rev-parse", "HEAD")
+        rules_tree = git(rules_repo, "rev-parse", "HEAD^{tree}")
+        binding_before = (dataset_repo / "binding.json").read_bytes()
+        dataset = read_json(dataset_repo / "dataset.json")
+        dataset.setdefault("state", {})["fs004_independence"] = True
+        (dataset_repo / "dataset.json").write_text(json.dumps(dataset, indent=2) + "\n", encoding="utf-8")
+        if (dataset_repo / "binding.json").read_bytes() != binding_before:
+            raise SystemExit("FAIL: FS-004 Dataset save changed binding")
+        if git(rules_repo, "rev-parse", "HEAD") != rules_head or git(rules_repo, "rev-parse", "HEAD^{tree}") != rules_tree:
+            raise SystemExit("FAIL: FS-004 Dataset save changed Ruleset repository")
+
+
+def task_repo_spec_provenance():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        state = build_repo_spec_split_realization(Path(tmp))
+        rules_repo = state["out"] / "package" / "ruleset"
+        dataset_repo = state["out"] / "package" / "dataset"
+        rules_provenance = read_json(rules_repo / "provenance.json")
+        dataset_provenance = read_json(dataset_repo / "provenance.json")
+        if set(rules_provenance) != {"adr", "app_builder", "repo_spec"}:
+            raise SystemExit("FAIL: FS-004 Ruleset provenance role separation")
+        if set(dataset_provenance) != {"adr", "app_builder"}:
+            raise SystemExit("FAIL: FS-004 Dataset gained repo-spec provenance")
+        if "binding" in rules_provenance or "binding" in dataset_provenance:
+            raise SystemExit("FAIL: FS-004 binding embedded in construction provenance")
+        binding = read_json(rules_repo / "binding.json")
+        if "adr" in binding or "app_builder" in binding or "repo_spec" in binding:
+            raise SystemExit("FAIL: FS-004 provenance embedded in realization binding")
+
+
+def task_generated_tree_determinism():
+    require_clean_tree()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        adr_repository, _ = create_adr_fixture(root)
+        repo_spec_repository, _ = validation_repo_spec_fixture()
+        build_path = root / "build.json"
+        write_build(build_path, "split-git")
+        trees = []
+        for name in ["a", "b"]:
+            out = root / name
+            run_build(out, build_path, adr_repository, repo_spec_repository=repo_spec_repository)
+            trees.append((
+                git(out / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
+                git(out / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
+            ))
+        if trees[0] != trees[1]:
+            raise SystemExit("FAIL: FS-004 generated tree determinism")
+        provider_identities = []
+        for provider in PROVIDERS:
+            provider_path = root / f"{provider}.json"
+            write_build(provider_path, "split-git")
+            value = read_json(provider_path)
+            value["providers"] = [provider]
+            provider_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+            out = root / ("provider-" + provider)
+            run_build(
+                out,
+                provider_path,
+                adr_repository,
+                repo_spec_repository=repo_spec_repository,
+            )
+            provider_identities.append(package_identity("split-git", out))
+        if provider_identities[0] != provider_identities[1]:
+            raise SystemExit(
+                "FAIL: provider selection changed provider-independent split repository content"
+            )
+
+
 TASKS = {
     "profile-contracts": task_profile_contracts,
     "core-realization": task_core_realization,
@@ -1220,6 +1683,13 @@ TASKS = {
     "git-packaging": task_git_packaging,
     "provider-independence": task_provider_independence,
     "structured-git-runtime": task_structured_git_runtime,
+    "repo-spec-source": task_repo_spec_source,
+    "lifecycle-installation": task_lifecycle_installation,
+    "ruleset-binding": task_ruleset_binding,
+    "generated-ruleset-lifecycle": task_generated_ruleset_lifecycle,
+    "split-repository-independence": task_split_repository_independence,
+    "repo-spec-provenance": task_repo_spec_provenance,
+    "generated-tree-determinism": task_generated_tree_determinism,
 }
 
 
