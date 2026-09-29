@@ -1781,8 +1781,10 @@ def run_task(name: str):
     fn = TASKS.get(name)
     if fn is None:
         raise SystemExit(f"FAIL product-validation: unknown product Validation task: {name}")
+    started = time.perf_counter()
     fn()
-    print(f"PASS {name}")
+    elapsed = time.perf_counter() - started
+    print(f"PASS {name} {elapsed:.2f}s")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1810,8 +1812,11 @@ def main(argv: list[str] | None = None) -> int:
         run_task(args.task)
         return 0
 
+    suite_started = time.perf_counter()
     for task in required_tasks():
         run_task(task)
+    elapsed = time.perf_counter() - suite_started
+    print(f"Product Validation: PASS {elapsed:.2f}s")
     return 0
 
 
