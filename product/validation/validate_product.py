@@ -800,20 +800,15 @@ def validate_packaging_group(profiles):
         for profile in profiles:
             if profile == "split-git":
                 baseline = validation_split_realization_fixture()
-                with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+                baseline_trees = (
+                    git(baseline["out"] / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
+                    git(baseline["out"] / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
+                )
+                if baseline_trees != validation_split_repeat_tree_identities():
+                    raise SystemExit("FAIL: split-git generated tree determinism")
+                with tempfile.TemporaryDirectory() as a:
                     copied = copy_validation_split_realization(baseline, Path(a))
                     pa = copied["out"]
-                    pb = Path(b)
-                    run_build(
-                        pb,
-                        baseline["build_path"],
-                        baseline["adr_repository"],
-                        application_path=baseline["application_path"],
-                        ruleset_path=baseline["ruleset_path"],
-                        dataset_path=baseline["dataset_path"],
-                        repo_spec_repository=baseline["repo_spec_repository"],
-                    )
-                    compare_initial(profile, pa, pb)
                     validators[profile](pa, rules, dataset)
                     for repo in [
                         pa / "package" / "ruleset",
@@ -1551,6 +1546,7 @@ def build_repo_spec_split_realization(root: Path, *, structured: bool = False, p
 
 _SPLIT_REALIZATION_FIXTURE_ROOT = None
 _SPLIT_REALIZATION_FIXTURES = {}
+_SPLIT_REPEAT_TREE_IDENTITIES = None
 
 
 def validation_split_realization_fixture(*, structured: bool = False):
@@ -1576,6 +1572,29 @@ def copy_validation_split_realization(state, root: Path):
     shutil.copytree(state["out"], copied_out)
     copied["out"] = copied_out
     return copied
+
+def validation_split_repeat_tree_identities():
+    global _SPLIT_REPEAT_TREE_IDENTITIES
+    if _SPLIT_REPEAT_TREE_IDENTITIES is not None:
+        return _SPLIT_REPEAT_TREE_IDENTITIES
+
+    baseline = validation_split_realization_fixture()
+    with tempfile.TemporaryDirectory() as tmp:
+        repeated_out = Path(tmp) / "repeat"
+        run_build(
+            repeated_out,
+            baseline["build_path"],
+            baseline["adr_repository"],
+            application_path=baseline["application_path"],
+            ruleset_path=baseline["ruleset_path"],
+            dataset_path=baseline["dataset_path"],
+            repo_spec_repository=baseline["repo_spec_repository"],
+        )
+        _SPLIT_REPEAT_TREE_IDENTITIES = (
+            git(repeated_out / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
+            git(repeated_out / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
+        )
+    return _SPLIT_REPEAT_TREE_IDENTITIES
 
 
 _SPLIT_PROVIDER_FIXTURE_ROOT = None
@@ -1854,25 +1873,8 @@ def task_generated_tree_determinism():
         git(baseline["out"] / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
         git(baseline["out"] / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
     )
-
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repeated_out = root / "repeat"
-        run_build(
-            repeated_out,
-            baseline["build_path"],
-            baseline["adr_repository"],
-            application_path=baseline["application_path"],
-            ruleset_path=baseline["ruleset_path"],
-            dataset_path=baseline["dataset_path"],
-            repo_spec_repository=baseline["repo_spec_repository"],
-        )
-        repeated_trees = (
-            git(repeated_out / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
-            git(repeated_out / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
-        )
-        if baseline_trees != repeated_trees:
-            raise SystemExit("FAIL: FS-004 generated tree determinism")
+    if baseline_trees != validation_split_repeat_tree_identities():
+        raise SystemExit("FAIL: FS-004 generated tree determinism")
 
     provider_identities = [
         package_identity("split-git", out)
