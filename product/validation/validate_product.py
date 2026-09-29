@@ -798,6 +798,36 @@ def validate_packaging_group(profiles):
         configs.mkdir()
 
         for profile in profiles:
+            if profile == "split-git":
+                baseline = validation_split_realization_fixture()
+                with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+                    copied = copy_validation_split_realization(baseline, Path(a))
+                    pa = copied["out"]
+                    pb = Path(b)
+                    run_build(
+                        pb,
+                        baseline["build_path"],
+                        baseline["adr_repository"],
+                        application_path=baseline["application_path"],
+                        ruleset_path=baseline["ruleset_path"],
+                        dataset_path=baseline["dataset_path"],
+                        repo_spec_repository=baseline["repo_spec_repository"],
+                    )
+                    compare_initial(profile, pa, pb)
+                    validators[profile](pa, rules, dataset)
+                    for repo in [
+                        pa / "package" / "ruleset",
+                        pa / "package" / "dataset",
+                    ]:
+                        assert_runtime_metadata(
+                            repo,
+                            application,
+                            baseline["adr_repository"],
+                            baseline["adr_commit"],
+                            builder,
+                        )
+                continue
+
             build_path = configs / f"{profile}.json"
             write_build(build_path, profile)
             with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
@@ -814,18 +844,6 @@ def validate_packaging_group(profiles):
                         adr,
                         builder,
                     )
-                elif profile == "split-git":
-                    for repo in [
-                        pa / "package" / "ruleset",
-                        pa / "package" / "dataset",
-                    ]:
-                        assert_runtime_metadata(
-                            repo,
-                            application,
-                            adr_repository,
-                            adr,
-                            builder,
-                        )
 
     assert_source_snapshot(before)
 
