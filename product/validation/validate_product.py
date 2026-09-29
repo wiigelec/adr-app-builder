@@ -1805,6 +1805,24 @@ def task_generated_tree_determinism():
                 "FAIL: provider selection changed provider-independent split repository content"
             )
 
+TASKS = {
+    "profile-contracts": task_profile_contracts,
+    "core-realization": task_core_realization,
+    "source-input-contracts": task_source_input_contracts,
+    "file-packaging": task_file_packaging,
+    "git-packaging": task_git_packaging,
+    "provider-independence": task_provider_independence,
+    "structured-git-runtime": task_structured_git_runtime,
+    "repo-spec-source": task_repo_spec_source,
+    "lifecycle-installation": task_lifecycle_installation,
+    "ruleset-binding": task_ruleset_binding,
+    "generated-ruleset-lifecycle": task_generated_ruleset_lifecycle,
+    "split-repository-independence": task_split_repository_independence,
+    "repo-spec-provenance": task_repo_spec_provenance,
+    "generated-tree-determinism": task_generated_tree_determinism,
+}
+
+
 def fail(message: str) -> int:
     print(f"FAIL product-validation: {message}", file=sys.stderr)
     return 1
