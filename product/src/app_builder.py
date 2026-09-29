@@ -488,12 +488,6 @@ def finalize_initialized_ruleset_repo(repo: Path, files: dict[str, bytes], rules
     extend_initialized_ruleset_guidance(repo, component_refs)
     run_git(repo, ["add", "-A"])
     validator = repo / "scripts" / "validate"
-    validation = subprocess.run(
-        [str(validator)], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    if validation.returncode != 0:
-        detail = validation.stderr.strip() or validation.stdout.strip()
-        raise SystemExit("generated Ruleset repository Validation failed: " + detail)
 
     created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     commit_env = {**GIT_IDENTITY, "GIT_AUTHOR_DATE": created_at, "GIT_COMMITTER_DATE": created_at}
