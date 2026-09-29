@@ -1944,6 +1944,7 @@ def run_task(name: str):
     fn = TASKS.get(name)
     if fn is None:
         raise SystemExit(f"FAIL product-validation: unknown product Validation task: {name}")
+    # Flush task boundaries for constrained validation runners.
     print(f"START {name}", flush=True)
     started = time.perf_counter()
     fn()
