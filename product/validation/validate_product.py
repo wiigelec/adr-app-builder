@@ -1028,123 +1028,146 @@ def task_structured_git_runtime():
         configs = root / "configs"
         configs.mkdir()
 
-        for profile in ["single-git", "split-git"]:
-            build_path = configs / f"{profile}.json"
-            value = structured_build_value(profile)
-            build_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-            with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-                pa, pb = Path(a), Path(b)
-                for out in [pa, pb]:
-                    run_build(
-                        out,
-                        build_path,
-                        adr_repository,
-                        application_path=STRUCTURED_BASE / "application.json",
-                        ruleset_path=STRUCTURED_BASE / "ruleset.json",
-                        dataset_path=STRUCTURED_BASE / "dataset.json",
-                    )
+        # single-git retains two independent constructions for FS-003 repeat determinism.
+        profile = "single-git"
+        build_path = configs / f"{profile}.json"
+        value = structured_build_value(profile)
+        build_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            pa, pb = Path(a), Path(b)
+            for out in [pa, pb]:
+                run_build(
+                    out,
+                    build_path,
+                    adr_repository,
+                    application_path=STRUCTURED_BASE / "application.json",
+                    ruleset_path=STRUCTURED_BASE / "ruleset.json",
+                    dataset_path=STRUCTURED_BASE / "dataset.json",
+                )
 
-                if profile == "single-git":
-                    repo = pa / "package" / "repository"
-                    repo_b = pb / "package" / "repository"
-                    verify_git_initial_history(repo, "FS-003 single-git")
-                    verify_git_initial_history(repo_b, "FS-003 single-git repeat")
-                    if git(repo, "rev-parse", "HEAD^{tree}") != git(repo_b, "rev-parse", "HEAD^{tree}"):
-                        raise SystemExit("FAIL: FS-003 single-git generated tree repeat determinism")
-                    assert_init_config(
-                        repo,
-                        STRUCTURED_BASE / "application.json",
-                        STRUCTURED_BASE / "ruleset.json",
-                        STRUCTURED_BASE / "dataset.json",
-                        build_path,
-                    )
-                    assert_runtime_metadata(
-                        repo,
-                        application,
-                        adr_repository,
-                        adr,
-                        builder,
-                    )
-                    if reconstruct_component(
-                        repo, "ruleset", rules, value["runtime"]["ruleset"]["files"]
-                    ) != rules:
-                        raise SystemExit("FAIL: FS-003 Ruleset lossless reconstruction")
-                    mapping = value["runtime"]["dataset"]["files"]
-                    if reconstruct_component(repo, "dataset", dataset, mapping) != dataset:
-                        raise SystemExit("FAIL: FS-003 Dataset lossless reconstruction")
+            repo = pa / "package" / "repository"
+            repo_b = pb / "package" / "repository"
+            verify_git_initial_history(repo, "FS-003 single-git")
+            verify_git_initial_history(repo_b, "FS-003 single-git repeat")
+            if git(repo, "rev-parse", "HEAD^{tree}") != git(repo_b, "rev-parse", "HEAD^{tree}"):
+                raise SystemExit("FAIL: FS-003 single-git generated tree repeat determinism")
+            assert_init_config(
+                repo,
+                STRUCTURED_BASE / "application.json",
+                STRUCTURED_BASE / "ruleset.json",
+                STRUCTURED_BASE / "dataset.json",
+                build_path,
+            )
+            assert_runtime_metadata(
+                repo,
+                application,
+                adr_repository,
+                adr,
+                builder,
+            )
+            if reconstruct_component(
+                repo, "ruleset", rules, value["runtime"]["ruleset"]["files"]
+            ) != rules:
+                raise SystemExit("FAIL: FS-003 Ruleset lossless reconstruction")
+            mapping = value["runtime"]["dataset"]["files"]
+            if reconstruct_component(repo, "dataset", dataset, mapping) != dataset:
+                raise SystemExit("FAIL: FS-003 Dataset lossless reconstruction")
 
-                    preserved = snapshot_without_dataset(repo)
-                    session = ApplicationSession(
-                        lambda: reconstruct_component(repo, "dataset", dataset, mapping),
-                        lambda current: write_tree_dataset(repo, current, mapping),
-                    )
-                    session.edit(
-                        lambda current: current.setdefault("state", {}).__setitem__(
-                            "fs003_validation_mutation", True
-                        )
-                    )
-                    if reconstruct_component(repo, "dataset", dataset, mapping) != dataset:
-                        raise SystemExit("FAIL: FS-003 edit persisted before save")
-                    session.save()
-                    saved = reconstruct_component(repo, "dataset", session.read(), mapping)
-                    if saved != session.read():
-                        raise SystemExit("FAIL: FS-003 explicit save did not persist active state")
-                    assert_snapshot(repo, preserved)
-                    if session.reopen() != saved:
-                        raise SystemExit("FAIL: FS-003 reopen did not restore persisted Dataset")
-                else:
-                    rules_repo = pa / "package" / "ruleset"
-                    dataset_repo = pa / "package" / "dataset"
-                    rules_repo_b = pb / "package" / "ruleset"
-                    dataset_repo_b = pb / "package" / "dataset"
-                    for candidate, label in [
-                        (rules_repo, "FS-003 split Ruleset"),
-                        (dataset_repo, "FS-003 split Dataset"),
-                        (rules_repo_b, "FS-003 split Ruleset repeat"),
-                        (dataset_repo_b, "FS-003 split Dataset repeat"),
-                    ]:
-                        verify_git_initial_history(candidate, label)
-                    if (
-                        git(rules_repo, "rev-parse", "HEAD^{tree}")
-                        != git(rules_repo_b, "rev-parse", "HEAD^{tree}")
-                        or git(dataset_repo, "rev-parse", "HEAD^{tree}")
-                        != git(dataset_repo_b, "rev-parse", "HEAD^{tree}")
-                    ):
-                        raise SystemExit("FAIL: FS-003 split-git generated tree repeat determinism")
-                    for repo in [rules_repo, dataset_repo]:
-                        assert_init_config(
-                            repo,
-                            STRUCTURED_BASE / "application.json",
-                            STRUCTURED_BASE / "ruleset.json",
-                            STRUCTURED_BASE / "dataset.json",
-                            build_path,
-                        )
-                        assert_runtime_metadata(
-                            repo,
-                            application,
-                            adr_repository,
-                            adr,
-                            builder,
-                        )
-                    rules_head = git(rules_repo, "rev-parse", "HEAD")
-                    rules_snapshot = {
-                        relative: sha(rules_repo / relative)
-                        for relative in repo_files(rules_repo)
-                    }
-                    mapping = value["runtime"]["dataset"]["files"]
-                    session = ApplicationSession(
-                        lambda: reconstruct_component(dataset_repo, "dataset", dataset, mapping),
-                        lambda current: write_tree_dataset(dataset_repo, current, mapping),
-                    )
-                    session.edit(
-                        lambda current: current.setdefault("state", {}).__setitem__(
-                            "fs003_validation_mutation", True
-                        )
-                    )
-                    session.save()
-                    if git(rules_repo, "rev-parse", "HEAD") != rules_head:
-                        raise SystemExit("FAIL: FS-003 split save advanced Ruleset repository")
-                    assert_snapshot(rules_repo, rules_snapshot)
+            preserved = snapshot_without_dataset(repo)
+            session = ApplicationSession(
+                lambda: reconstruct_component(repo, "dataset", dataset, mapping),
+                lambda current: write_tree_dataset(repo, current, mapping),
+            )
+            session.edit(
+                lambda current: current.setdefault("state", {}).__setitem__(
+                    "fs003_validation_mutation", True
+                )
+            )
+            if reconstruct_component(repo, "dataset", dataset, mapping) != dataset:
+                raise SystemExit("FAIL: FS-003 edit persisted before save")
+            session.save()
+            saved = reconstruct_component(repo, "dataset", session.read(), mapping)
+            if saved != session.read():
+                raise SystemExit("FAIL: FS-003 explicit save did not persist active state")
+            assert_snapshot(repo, preserved)
+            if session.reopen() != saved:
+                raise SystemExit("FAIL: FS-003 reopen did not restore persisted Dataset")
+
+        # split-git reuses one immutable structured baseline and performs one
+        # independent equivalent construction for repeat determinism.
+        structured = validation_split_realization_fixture(structured=True)
+        value = read_json(structured["build_path"])
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            copied = copy_validation_split_realization(structured, Path(a))
+            pa = copied["out"]
+            pb = Path(b)
+            run_build(
+                pb,
+                structured["build_path"],
+                structured["adr_repository"],
+                application_path=structured["application_path"],
+                ruleset_path=structured["ruleset_path"],
+                dataset_path=structured["dataset_path"],
+                repo_spec_repository=structured["repo_spec_repository"],
+            )
+
+            rules_repo = pa / "package" / "ruleset"
+            dataset_repo = pa / "package" / "dataset"
+            rules_repo_b = pb / "package" / "ruleset"
+            dataset_repo_b = pb / "package" / "dataset"
+            verify_git_initial_history(
+                rules_repo,
+                "FS-003 split Ruleset",
+                reference_time=structured["built_at"],
+            )
+            verify_git_initial_history(
+                dataset_repo,
+                "FS-003 split Dataset",
+                reference_time=structured["built_at"],
+            )
+            verify_git_initial_history(rules_repo_b, "FS-003 split Ruleset repeat")
+            verify_git_initial_history(dataset_repo_b, "FS-003 split Dataset repeat")
+            if (
+                git(rules_repo, "rev-parse", "HEAD^{tree}")
+                != git(rules_repo_b, "rev-parse", "HEAD^{tree}")
+                or git(dataset_repo, "rev-parse", "HEAD^{tree}")
+                != git(dataset_repo_b, "rev-parse", "HEAD^{tree}")
+            ):
+                raise SystemExit("FAIL: FS-003 split-git generated tree repeat determinism")
+            for repo in [rules_repo, dataset_repo]:
+                assert_init_config(
+                    repo,
+                    structured["application_path"],
+                    structured["ruleset_path"],
+                    structured["dataset_path"],
+                    structured["build_path"],
+                )
+                assert_runtime_metadata(
+                    repo,
+                    application,
+                    structured["adr_repository"],
+                    structured["adr_commit"],
+                    builder,
+                )
+            rules_head = git(rules_repo, "rev-parse", "HEAD")
+            rules_snapshot = {
+                relative: sha(rules_repo / relative)
+                for relative in repo_files(rules_repo)
+            }
+            mapping = value["runtime"]["dataset"]["files"]
+            session = ApplicationSession(
+                lambda: reconstruct_component(dataset_repo, "dataset", dataset, mapping),
+                lambda current: write_tree_dataset(dataset_repo, current, mapping),
+            )
+            session.edit(
+                lambda current: current.setdefault("state", {}).__setitem__(
+                    "fs003_validation_mutation", True
+                )
+            )
+            session.save()
+            if git(rules_repo, "rev-parse", "HEAD") != rules_head:
+                raise SystemExit("FAIL: FS-003 split save advanced Ruleset repository")
+            assert_snapshot(rules_repo, rules_snapshot)
 
         mixed_path = configs / "mixed.json"
         mixed = structured_build_value("single-git", mixed=True)
@@ -1247,6 +1270,7 @@ def task_structured_git_runtime():
     for path, digest in before.items():
         if sha(path) != digest:
             raise SystemExit(f"FAIL: FS-003 source mutated {path.relative_to(ROOT)}")
+
 
 _REPO_SPEC_FIXTURE_ROOT = None
 _REPO_SPEC_FIXTURE_REPO = None
