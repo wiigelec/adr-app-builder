@@ -687,7 +687,11 @@ def validate_dirty_product_candidate_regression() -> None:
                 )
 
             validation = subprocess.run(
-                [str(candidate / "product" / "scripts" / "validate")],
+                [
+                    str(candidate / "product" / "scripts" / "validate"),
+                    "--task",
+                    "profile-contracts",
+                ],
                 cwd=candidate,
                 text=True,
                 stdout=subprocess.PIPE,
