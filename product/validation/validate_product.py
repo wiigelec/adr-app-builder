@@ -1927,10 +1927,11 @@ def run_task(name: str):
     fn = TASKS.get(name)
     if fn is None:
         raise SystemExit(f"FAIL product-validation: unknown product Validation task: {name}")
+    print(f"START {name}", flush=True)
     started = time.perf_counter()
     fn()
     elapsed = time.perf_counter() - started
-    print(f"PASS {name} {elapsed:.2f}s")
+    print(f"PASS {name} {elapsed:.2f}s", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
