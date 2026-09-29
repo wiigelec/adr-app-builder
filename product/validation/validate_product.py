@@ -257,7 +257,7 @@ def repo_files(repo: Path):
     )
 
 
-def verify_git_initial_history(repo: Path, label: str):
+def verify_git_initial_history(repo: Path, label: str, *, reference_time=None):
     if git(repo, "rev-list", "--count", "HEAD") != "1":
         raise SystemExit(f"FAIL: {label} must contain exactly one initial commit")
     if git(repo, "show", "-s", "--format=%s", "HEAD") != "ADR App Builder initial package":
@@ -281,7 +281,7 @@ def verify_git_initial_history(repo: Path, label: str):
     dates = git(repo, "show", "-s", "--format=%at%n%ct", "HEAD").splitlines()
     if len(dates) != 2:
         raise SystemExit(f"FAIL: {label} initial timestamp shape")
-    now = int(time.time())
+    now = int(reference_time if reference_time is not None else time.time())
     if any(abs(now - int(value)) > 300 for value in dates):
         raise SystemExit(f"FAIL: {label} initial timestamp is not current")
 
@@ -1489,67 +1489,102 @@ def build_repo_spec_split_realization(root: Path, *, structured: bool = False, p
         "application_path": application_path,
         "ruleset_path": ruleset_path,
         "dataset_path": dataset_path,
+        "built_at": time.time(),
     }
+
+
+_SPLIT_REALIZATION_FIXTURE_ROOT = None
+_SPLIT_REALIZATION_FIXTURES = {}
+
+
+def validation_split_realization_fixture(*, structured: bool = False):
+    global _SPLIT_REALIZATION_FIXTURE_ROOT
+    key = "structured" if structured else "baseline"
+    if key in _SPLIT_REALIZATION_FIXTURES:
+        return _SPLIT_REALIZATION_FIXTURES[key]
+
+    if _SPLIT_REALIZATION_FIXTURE_ROOT is None:
+        _SPLIT_REALIZATION_FIXTURE_ROOT = Path(
+            tempfile.mkdtemp(prefix="adr-app-builder-split-realization-fixtures-")
+        )
+    root = _SPLIT_REALIZATION_FIXTURE_ROOT / key
+    root.mkdir()
+    state = build_repo_spec_split_realization(root, structured=structured)
+    _SPLIT_REALIZATION_FIXTURES[key] = state
+    return state
+
+
+def copy_validation_split_realization(state, root: Path):
+    copied = dict(state)
+    copied_out = root / "out"
+    shutil.copytree(state["out"], copied_out)
+    copied["out"] = copied_out
+    return copied
 
 
 def task_repo_spec_source():
     require_clean_tree()
-    with tempfile.TemporaryDirectory() as tmp:
-        state = build_repo_spec_split_realization(Path(tmp))
-        rules_repo = state["out"] / "package" / "ruleset"
-        record = read_json(rules_repo / "repo" / "validation" / "framework-source.json")
-        if record.get("repo_spec_source_revision") != state["repo_spec_commit"]:
-            raise SystemExit("FAIL: FS-004 initialized framework source revision")
-        if not (rules_repo / "repo" / "src" / "fixture-marker.txt").is_file():
-            raise SystemExit("FAIL: FS-004 initialized framework correspondence")
-        provenance = read_json(rules_repo / "provenance.json")
-        expected = {"repository": normalize_repository_identity(str(state["repo_spec_repository"])), "commit": state["repo_spec_commit"]}
-        if provenance.get("repo_spec") != expected:
-            raise SystemExit("FAIL: FS-004 repo-spec source provenance truthfulness")
-
+    state = validation_split_realization_fixture()
+    rules_repo = state["out"] / "package" / "ruleset"
+    record = read_json(rules_repo / "repo" / "validation" / "framework-source.json")
+    if record.get("repo_spec_source_revision") != state["repo_spec_commit"]:
+        raise SystemExit("FAIL: FS-004 initialized framework source revision")
+    if not (rules_repo / "repo" / "src" / "fixture-marker.txt").is_file():
+        raise SystemExit("FAIL: FS-004 initialized framework correspondence")
+    provenance = read_json(rules_repo / "provenance.json")
+    expected = {"repository": normalize_repository_identity(str(state["repo_spec_repository"])), "commit": state["repo_spec_commit"]}
+    if provenance.get("repo_spec") != expected:
+        raise SystemExit("FAIL: FS-004 repo-spec source provenance truthfulness")
 
 def task_lifecycle_installation():
     require_clean_tree()
+    state = validation_split_realization_fixture()
+    rules_repo = state["out"] / "package" / "ruleset"
+    dataset_repo = state["out"] / "package" / "dataset"
+    for required in [
+        "repo/validation/structure-policy.json", "repo/validation/framework-source.json",
+        "repo/scripts/validate", "scripts/validate", ".github/workflows/validation.yml",
+        "product/design/README.md", "product/specs/README.md", "product/scripts/validate",
+        "product/validation/validate_product.py",
+    ]:
+        if not (rules_repo / required).is_file():
+            raise SystemExit(f"FAIL: FS-004 Ruleset lifecycle installation {required}")
+    for forbidden in ["repo", "product", "scripts/validate", ".github/workflows/validation.yml"]:
+        if (dataset_repo / forbidden).exists():
+            raise SystemExit(f"FAIL: FS-004 Dataset lifecycle exclusion {forbidden}")
+    policy = read_json(rules_repo / "repo" / "validation" / "structure-policy.json")
+    expected_files = {"application.json", "provenance.json", "ruleset.json"}
+    if not expected_files <= set(policy["root"]["files"]):
+        raise SystemExit("FAIL: FS-004 file Ruleset policy adaptation")
+    if "init-config" not in set(policy["root"]["directories"]):
+        raise SystemExit("FAIL: FS-004 init-config policy adaptation")
+
+    structured = validation_split_realization_fixture(structured=True)
+    structured_policy = read_json(
+        structured["out"] / "package" / "ruleset" / "repo" / "validation" / "structure-policy.json"
+    )
+    if "ruleset" not in set(structured_policy["root"]["directories"]):
+        raise SystemExit("FAIL: FS-004 tree Ruleset policy adaptation")
+    if "ruleset.json" in set(structured_policy["root"]["files"]):
+        raise SystemExit("FAIL: FS-004 tree policy retained wrong file role")
+
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        state = build_repo_spec_split_realization(root)
-        rules_repo = state["out"] / "package" / "ruleset"
-        dataset_repo = state["out"] / "package" / "dataset"
-        for required in [
-            "repo/validation/structure-policy.json", "repo/validation/framework-source.json",
-            "repo/scripts/validate", "scripts/validate", ".github/workflows/validation.yml",
-            "product/design/README.md", "product/specs/README.md", "product/scripts/validate",
-            "product/validation/validate_product.py",
-        ]:
-            if not (rules_repo / required).is_file():
-                raise SystemExit(f"FAIL: FS-004 Ruleset lifecycle installation {required}")
-        for forbidden in ["repo", "product", "scripts/validate", ".github/workflows/validation.yml"]:
-            if (dataset_repo / forbidden).exists():
-                raise SystemExit(f"FAIL: FS-004 Dataset lifecycle exclusion {forbidden}")
-        policy = read_json(rules_repo / "repo" / "validation" / "structure-policy.json")
-        expected_files = {"application.json", "provenance.json", "ruleset.json"}
-        if not expected_files <= set(policy["root"]["files"]):
-            raise SystemExit("FAIL: FS-004 file Ruleset policy adaptation")
-        if "init-config" not in set(policy["root"]["directories"]):
-            raise SystemExit("FAIL: FS-004 init-config policy adaptation")
-        with tempfile.TemporaryDirectory() as structured_tmp:
-            structured = build_repo_spec_split_realization(Path(structured_tmp), structured=True)
-            structured_policy = read_json(structured["out"] / "package" / "ruleset" / "repo" / "validation" / "structure-policy.json")
-            if "ruleset" not in set(structured_policy["root"]["directories"]):
-                raise SystemExit("FAIL: FS-004 tree Ruleset policy adaptation")
-            if "ruleset.json" in set(structured_policy["root"]["files"]):
-                raise SystemExit("FAIL: FS-004 tree policy retained wrong file role")
         non_split = root / "non-split"
         non_split.mkdir()
         adr_repository, _ = create_adr_fixture(non_split)
         build_path = root / "non-split-build.json"
         write_build(build_path, "single-git")
         out = root / "non-split-out"
-        run_build(out, build_path, adr_repository, repo_spec_repository=root / "intentionally-missing-repo-spec")
+        run_build(
+            out,
+            build_path,
+            adr_repository,
+            repo_spec_repository=root / "intentionally-missing-repo-spec",
+        )
         single = out / "package" / "repository"
         if (single / "repo").exists() or (single / "binding.json").exists():
             raise SystemExit("FAIL: FS-004 changed non-split lifecycle behavior")
-
 
 def task_ruleset_binding():
     require_clean_tree()
@@ -1636,12 +1671,28 @@ def task_ruleset_binding():
 def task_generated_ruleset_lifecycle():
     require_clean_tree()
     with tempfile.TemporaryDirectory() as tmp:
-        state = build_repo_spec_split_realization(Path(tmp))
+        state = copy_validation_split_realization(
+            validation_split_realization_fixture(),
+            Path(tmp),
+        )
         repo = state["out"] / "package" / "ruleset"
-        cp = subprocess.run([str(repo / "scripts" / "validate")], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cp = subprocess.run(
+            [str(repo / "scripts" / "validate")],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
         if cp.returncode != 0:
-            raise SystemExit("FAIL: FS-004 generated canonical Ruleset Validation: " + (cp.stderr.strip() or cp.stdout.strip()))
-        verify_git_initial_history(repo, "FS-004 initialized Ruleset repository")
+            raise SystemExit(
+                "FAIL: FS-004 generated canonical Ruleset Validation: "
+                + (cp.stderr.strip() or cp.stdout.strip())
+            )
+        verify_git_initial_history(
+            repo,
+            "FS-004 initialized Ruleset repository",
+            reference_time=state["built_at"],
+        )
         if git(repo, "rev-list", "--count", "HEAD") != "1":
             raise SystemExit("FAIL: FS-004 must preserve one initial construction commit")
         readme = (repo / "README.md").read_text(encoding="utf-8")
@@ -1659,11 +1710,13 @@ def task_generated_ruleset_lifecycle():
         if "paired Dataset repository" in agents:
             raise SystemExit("FAIL: FS-004 Ruleset guidance implies persistent one-to-one Dataset pairing")
 
-
 def task_split_repository_independence():
     require_clean_tree()
     with tempfile.TemporaryDirectory() as tmp:
-        state = build_repo_spec_split_realization(Path(tmp))
+        state = copy_validation_split_realization(
+            validation_split_realization_fixture(),
+            Path(tmp),
+        )
         rules_repo = state["out"] / "package" / "ruleset"
         dataset_repo = state["out"] / "package" / "dataset"
         rules_head = git(rules_repo, "rev-parse", "HEAD")
@@ -1671,90 +1724,86 @@ def task_split_repository_independence():
         binding_before = (dataset_repo / "binding.json").read_bytes()
         dataset = read_json(dataset_repo / "dataset.json")
         dataset.setdefault("state", {})["fs004_independence"] = True
-        (dataset_repo / "dataset.json").write_text(json.dumps(dataset, indent=2) + "\n", encoding="utf-8")
+        (dataset_repo / "dataset.json").write_text(
+            json.dumps(dataset, indent=2) + "\n",
+            encoding="utf-8",
+        )
         if (dataset_repo / "binding.json").read_bytes() != binding_before:
             raise SystemExit("FAIL: FS-004 Dataset save changed binding")
-        if git(rules_repo, "rev-parse", "HEAD") != rules_head or git(rules_repo, "rev-parse", "HEAD^{tree}") != rules_tree:
+        if (
+            git(rules_repo, "rev-parse", "HEAD") != rules_head
+            or git(rules_repo, "rev-parse", "HEAD^{tree}") != rules_tree
+        ):
             raise SystemExit("FAIL: FS-004 Dataset save changed Ruleset repository")
-
 
 def task_repo_spec_provenance():
     require_clean_tree()
-    with tempfile.TemporaryDirectory() as tmp:
-        state = build_repo_spec_split_realization(Path(tmp))
-        rules_repo = state["out"] / "package" / "ruleset"
-        dataset_repo = state["out"] / "package" / "dataset"
-        rules_provenance = read_json(rules_repo / "provenance.json")
-        dataset_provenance = read_json(dataset_repo / "provenance.json")
-        if set(rules_provenance) != {"adr", "app_builder", "repo_spec"}:
-            raise SystemExit("FAIL: FS-004 Ruleset provenance role separation")
-        if set(dataset_provenance) != {"adr", "app_builder"}:
-            raise SystemExit("FAIL: FS-004 Dataset gained repo-spec provenance")
-        if "binding" in rules_provenance or "binding" in dataset_provenance:
-            raise SystemExit("FAIL: FS-004 binding embedded in construction provenance")
-        if (rules_repo / "binding.json").exists():
-            raise SystemExit("FAIL: FS-004 Ruleset repository contains Dataset binding")
-        binding = read_json(dataset_repo / "binding.json")
-        if "adr" in binding or "app_builder" in binding or "repo_spec" in binding:
-            raise SystemExit("FAIL: FS-004 provenance embedded in realization binding")
-
+    state = validation_split_realization_fixture()
+    rules_repo = state["out"] / "package" / "ruleset"
+    dataset_repo = state["out"] / "package" / "dataset"
+    rules_provenance = read_json(rules_repo / "provenance.json")
+    dataset_provenance = read_json(dataset_repo / "provenance.json")
+    if set(rules_provenance) != {"adr", "app_builder", "repo_spec"}:
+        raise SystemExit("FAIL: FS-004 Ruleset provenance role separation")
+    if set(dataset_provenance) != {"adr", "app_builder"}:
+        raise SystemExit("FAIL: FS-004 Dataset gained repo-spec provenance")
+    if "binding" in rules_provenance or "binding" in dataset_provenance:
+        raise SystemExit("FAIL: FS-004 binding embedded in construction provenance")
+    if (rules_repo / "binding.json").exists():
+        raise SystemExit("FAIL: FS-004 Ruleset repository contains Dataset binding")
+    binding = read_json(dataset_repo / "binding.json")
+    if "adr" in binding or "app_builder" in binding or "repo_spec" in binding:
+        raise SystemExit("FAIL: FS-004 provenance embedded in realization binding")
 
 def task_generated_tree_determinism():
     require_clean_tree()
+    baseline = validation_split_realization_fixture()
+    baseline_trees = (
+        git(baseline["out"] / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
+        git(baseline["out"] / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
+    )
+
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        adr_repository, _ = create_adr_fixture(root)
-        repo_spec_repository, _ = validation_repo_spec_fixture()
-        build_path = root / "build.json"
-        write_build(build_path, "split-git")
-        trees = []
-        for name in ["a", "b"]:
-            out = root / name
-            run_build(out, build_path, adr_repository, repo_spec_repository=repo_spec_repository)
-            trees.append((
-                git(out / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
-                git(out / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
-            ))
-        if trees[0] != trees[1]:
+        repeated_out = root / "repeat"
+        run_build(
+            repeated_out,
+            baseline["build_path"],
+            baseline["adr_repository"],
+            application_path=baseline["application_path"],
+            ruleset_path=baseline["ruleset_path"],
+            dataset_path=baseline["dataset_path"],
+            repo_spec_repository=baseline["repo_spec_repository"],
+        )
+        repeated_trees = (
+            git(repeated_out / "package" / "ruleset", "rev-parse", "HEAD^{tree}"),
+            git(repeated_out / "package" / "dataset", "rev-parse", "HEAD^{tree}"),
+        )
+        if baseline_trees != repeated_trees:
             raise SystemExit("FAIL: FS-004 generated tree determinism")
+
         provider_identities = []
         for provider in PROVIDERS:
             provider_path = root / f"{provider}.json"
             write_build(provider_path, "split-git")
             value = read_json(provider_path)
             value["providers"] = [provider]
-            provider_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+            provider_path.write_text(
+                json.dumps(value, indent=2) + "\n",
+                encoding="utf-8",
+            )
             out = root / ("provider-" + provider)
             run_build(
                 out,
                 provider_path,
-                adr_repository,
-                repo_spec_repository=repo_spec_repository,
+                baseline["adr_repository"],
+                repo_spec_repository=baseline["repo_spec_repository"],
             )
             provider_identities.append(package_identity("split-git", out))
         if provider_identities[0] != provider_identities[1]:
             raise SystemExit(
                 "FAIL: provider selection changed provider-independent split repository content"
             )
-
-
-TASKS = {
-    "profile-contracts": task_profile_contracts,
-    "core-realization": task_core_realization,
-    "source-input-contracts": task_source_input_contracts,
-    "file-packaging": task_file_packaging,
-    "git-packaging": task_git_packaging,
-    "provider-independence": task_provider_independence,
-    "structured-git-runtime": task_structured_git_runtime,
-    "repo-spec-source": task_repo_spec_source,
-    "lifecycle-installation": task_lifecycle_installation,
-    "ruleset-binding": task_ruleset_binding,
-    "generated-ruleset-lifecycle": task_generated_ruleset_lifecycle,
-    "split-repository-independence": task_split_repository_independence,
-    "repo-spec-provenance": task_repo_spec_provenance,
-    "generated-tree-determinism": task_generated_tree_determinism,
-}
-
 
 def fail(message: str) -> int:
     print(f"FAIL product-validation: {message}", file=sys.stderr)
