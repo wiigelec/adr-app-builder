@@ -133,7 +133,7 @@ def run_from_committed_candidate_if_needed(argv):
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "product" / "src"))
-from app_builder import normalize_repository_identity
+from app_builder import normalize_repository_identity, runtime_metadata_files
 from session_state import ApplicationSession
 
 def sha(path):
@@ -1699,84 +1699,99 @@ def task_lifecycle_installation():
 
 def task_ruleset_binding():
     require_clean_tree()
-    with tempfile.TemporaryDirectory() as tmp:
-        application = read_json(BASE / "application.json")
-        application["ruleset_binding"] = {"opaque": "preserve-me"}
-        state = build_repo_spec_split_realization(Path(tmp), application=application)
-        rules_repo = state["out"] / "package" / "ruleset"
-        dataset_repo = state["out"] / "package" / "dataset"
-        if (rules_repo / "binding.json").exists():
-            raise SystemExit("FAIL: FS-004 Ruleset repository contains Dataset-instance binding state")
-        if not (dataset_repo / "binding.json").is_file():
-            raise SystemExit("FAIL: FS-004 Dataset repository lacks Ruleset binding")
-        ruleset = read_json(BASE / "ruleset.json")
-        canonical = json.dumps(ruleset, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        expected_digest = hashlib.sha256(canonical).hexdigest()
-        expected = {
-            "schema_version": 1,
-            "application_id": application["id"],
-            "instance_id": read_json(BASE / "dataset.json")["instance"]["id"],
-            "ruleset_authority": {"kind": "content-sha256", "sha256": expected_digest},
-        }
-        observed_binding = read_json(dataset_repo / "binding.json")
-        if observed_binding != expected:
-            raise SystemExit("FAIL: FS-004 determinate Dataset-to-Ruleset binding")
+    application = read_json(BASE / "application.json")
+    ruleset = read_json(BASE / "ruleset.json")
+    dataset = read_json(BASE / "dataset.json")
+    state = validation_split_realization_fixture()
+    rules_repo = state["out"] / "package" / "ruleset"
+    dataset_repo = state["out"] / "package" / "dataset"
 
-        bound_digest = observed_binding["ruleset_authority"]["sha256"]
-        exact_supplied_digest = hashlib.sha256(canonical).hexdigest()
-        if exact_supplied_digest != bound_digest:
-            raise SystemExit("FAIL: FS-004 exact supplied Ruleset did not establish binding alignment")
+    if (rules_repo / "binding.json").exists():
+        raise SystemExit("FAIL: FS-004 Ruleset repository contains Dataset-instance binding state")
+    if not (dataset_repo / "binding.json").is_file():
+        raise SystemExit("FAIL: FS-004 Dataset repository lacks Ruleset binding")
 
-        mismatched_ruleset = json.loads(json.dumps(ruleset))
-        mismatch_marker = "__fs004_validation_mismatch__"
-        if isinstance(mismatched_ruleset, dict):
-            mismatched_ruleset[mismatch_marker] = True
-        else:
-            mismatched_ruleset = {"value": mismatched_ruleset, mismatch_marker: True}
-        mismatch_canonical = json.dumps(
-            mismatched_ruleset,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode("utf-8")
-        mismatched_supplied_digest = hashlib.sha256(mismatch_canonical).hexdigest()
-        if mismatched_supplied_digest == bound_digest:
-            raise SystemExit("FAIL: FS-004 mismatched supplied Ruleset was not distinguishable from binding")
+    canonical = json.dumps(
+        ruleset,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    expected_digest = hashlib.sha256(canonical).hexdigest()
+    expected = {
+        "schema_version": 1,
+        "application_id": application["id"],
+        "instance_id": dataset["instance"]["id"],
+        "ruleset_authority": {"kind": "content-sha256", "sha256": expected_digest},
+    }
+    observed_binding = read_json(dataset_repo / "binding.json")
+    if observed_binding != expected:
+        raise SystemExit("FAIL: FS-004 determinate Dataset-to-Ruleset binding")
 
-        if read_json(rules_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
-            raise SystemExit("FAIL: FS-004 application-owned binding field preservation")
-        if read_json(dataset_repo / "application.json").get("ruleset_binding") != {"opaque": "preserve-me"}:
-            raise SystemExit("FAIL: FS-004 Dataset application-owned binding field preservation")
-        rules_agents = (rules_repo / "AGENTS.md").read_text(encoding="utf-8")
-        dataset_agents = (dataset_repo / "AGENTS.md").read_text(encoding="utf-8")
-        if "not bound to any Dataset instance" not in rules_agents:
-            raise SystemExit("FAIL: FS-004 Ruleset guidance lacks one-to-many binding boundary")
-        if "does not exactly match the binding" not in dataset_agents:
-            raise SystemExit("FAIL: FS-004 Dataset guidance lacks mismatch initialization gate")
-        dataset_readme = (dataset_repo / "README.md").read_text(encoding="utf-8")
-        for token in [
-            "ruleset_authority.kind",
-            "content-sha256",
-            "parsing the supplied Ruleset JSON",
-            "object keys sorted recursively",
-            "compact separators",
-            "non-ASCII characters preserved",
-            "no trailing whitespace",
-            "SHA-256",
-        ]:
-            if token not in dataset_readme:
-                raise SystemExit(f"FAIL: FS-004 Dataset README lacks binding algorithm guidance {token}")
-        for token in [
-            "content-sha256",
-            "parse the supplied Ruleset JSON",
-            "recursively sorted object keys",
-            "compact separators",
-            "non-ASCII characters preserved",
-            "no trailing whitespace",
-            "SHA-256",
-        ]:
-            if token not in dataset_agents:
-                raise SystemExit(f"FAIL: FS-004 Dataset AGENTS lacks binding algorithm guidance {token}")
+    bound_digest = observed_binding["ruleset_authority"]["sha256"]
+    if hashlib.sha256(canonical).hexdigest() != bound_digest:
+        raise SystemExit("FAIL: FS-004 exact supplied Ruleset did not establish binding alignment")
+
+    mismatched_ruleset = json.loads(json.dumps(ruleset))
+    mismatch_marker = "__fs004_validation_mismatch__"
+    if isinstance(mismatched_ruleset, dict):
+        mismatched_ruleset[mismatch_marker] = True
+    else:
+        mismatched_ruleset = {"value": mismatched_ruleset, mismatch_marker: True}
+    mismatch_canonical = json.dumps(
+        mismatched_ruleset,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    if hashlib.sha256(mismatch_canonical).hexdigest() == bound_digest:
+        raise SystemExit("FAIL: FS-004 mismatched supplied Ruleset was not distinguishable from binding")
+
+    # NR-031 requires arbitrary application-owned binding-looking fields to remain
+    # ordinary application content. Exercise the same metadata transformation used
+    # by both split repositories without paying for another repo-spec construction.
+    opaque_application = json.loads(json.dumps(application))
+    opaque_application["ruleset_binding"] = {"opaque": "preserve-me"}
+    metadata = runtime_metadata_files(
+        opaque_application,
+        state["adr_repository"],
+        state["adr_commit"],
+        expected_app_builder_repository(),
+        app_builder_head(),
+    )
+    if json.loads(metadata["application.json"])["ruleset_binding"] != {"opaque": "preserve-me"}:
+        raise SystemExit("FAIL: FS-004 application-owned binding field preservation")
+
+    rules_agents = (rules_repo / "AGENTS.md").read_text(encoding="utf-8")
+    dataset_agents = (dataset_repo / "AGENTS.md").read_text(encoding="utf-8")
+    if "not bound to any Dataset instance" not in rules_agents:
+        raise SystemExit("FAIL: FS-004 Ruleset guidance lacks one-to-many binding boundary")
+    if "does not exactly match the binding" not in dataset_agents:
+        raise SystemExit("FAIL: FS-004 Dataset guidance lacks mismatch initialization gate")
+    dataset_readme = (dataset_repo / "README.md").read_text(encoding="utf-8")
+    for token in [
+        "ruleset_authority.kind",
+        "content-sha256",
+        "parsing the supplied Ruleset JSON",
+        "object keys sorted recursively",
+        "compact separators",
+        "non-ASCII characters preserved",
+        "no trailing whitespace",
+        "SHA-256",
+    ]:
+        if token not in dataset_readme:
+            raise SystemExit(f"FAIL: FS-004 Dataset README lacks binding algorithm guidance {token}")
+    for token in [
+        "content-sha256",
+        "parse the supplied Ruleset JSON",
+        "recursively sorted object keys",
+        "compact separators",
+        "non-ASCII characters preserved",
+        "no trailing whitespace",
+        "SHA-256",
+    ]:
+        if token not in dataset_agents:
+            raise SystemExit(f"FAIL: FS-004 Dataset AGENTS lacks binding algorithm guidance {token}")
 
 
 def task_generated_ruleset_lifecycle():
