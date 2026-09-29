@@ -867,7 +867,21 @@ def task_provider_independence():
         configs = root / "configs"
         configs.mkdir()
         for profile in PACKAGED_PROFILES:
-            validate_provider_selection_independence(profile, adr_repository, configs)
+            if profile == "split-git":
+                identities = [
+                    package_identity("split-git", out)
+                    for out in validation_split_provider_fixtures().values()
+                ]
+                if identities[0] != identities[1]:
+                    raise SystemExit(
+                        "FAIL: provider selection changed package split-git"
+                    )
+            else:
+                validate_provider_selection_independence(
+                    profile,
+                    adr_repository,
+                    configs,
+                )
     assert_source_snapshot(before)
 
 
@@ -1564,6 +1578,42 @@ def copy_validation_split_realization(state, root: Path):
     return copied
 
 
+_SPLIT_PROVIDER_FIXTURE_ROOT = None
+_SPLIT_PROVIDER_FIXTURES = None
+
+
+def validation_split_provider_fixtures():
+    global _SPLIT_PROVIDER_FIXTURE_ROOT, _SPLIT_PROVIDER_FIXTURES
+    if _SPLIT_PROVIDER_FIXTURES is not None:
+        return _SPLIT_PROVIDER_FIXTURES
+
+    baseline = validation_split_realization_fixture()
+    _SPLIT_PROVIDER_FIXTURE_ROOT = Path(
+        tempfile.mkdtemp(prefix="adr-app-builder-split-provider-fixtures-")
+    )
+    fixtures = {}
+    for provider in PROVIDERS:
+        provider_path = _SPLIT_PROVIDER_FIXTURE_ROOT / f"{provider}.json"
+        write_build(provider_path, "split-git")
+        value = read_json(provider_path)
+        value["providers"] = [provider]
+        provider_path.write_text(
+            json.dumps(value, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        out = _SPLIT_PROVIDER_FIXTURE_ROOT / ("provider-" + provider)
+        run_build(
+            out,
+            provider_path,
+            baseline["adr_repository"],
+            repo_spec_repository=baseline["repo_spec_repository"],
+        )
+        fixtures[provider] = out
+
+    _SPLIT_PROVIDER_FIXTURES = fixtures
+    return fixtures
+
+
 def task_repo_spec_source():
     require_clean_tree()
     state = validation_split_realization_fixture()
@@ -1824,28 +1874,15 @@ def task_generated_tree_determinism():
         if baseline_trees != repeated_trees:
             raise SystemExit("FAIL: FS-004 generated tree determinism")
 
-        provider_identities = []
-        for provider in PROVIDERS:
-            provider_path = root / f"{provider}.json"
-            write_build(provider_path, "split-git")
-            value = read_json(provider_path)
-            value["providers"] = [provider]
-            provider_path.write_text(
-                json.dumps(value, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            out = root / ("provider-" + provider)
-            run_build(
-                out,
-                provider_path,
-                baseline["adr_repository"],
-                repo_spec_repository=baseline["repo_spec_repository"],
-            )
-            provider_identities.append(package_identity("split-git", out))
-        if provider_identities[0] != provider_identities[1]:
-            raise SystemExit(
-                "FAIL: provider selection changed provider-independent split repository content"
-            )
+    provider_identities = [
+        package_identity("split-git", out)
+        for out in validation_split_provider_fixtures().values()
+    ]
+    if provider_identities[0] != provider_identities[1]:
+        raise SystemExit(
+            "FAIL: provider selection changed provider-independent split repository content"
+        )
+
 
 TASKS = {
     "profile-contracts": task_profile_contracts,
