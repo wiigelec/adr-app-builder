@@ -106,7 +106,45 @@
           "providers": "non-empty-unique-string-list"
         },
         "example": "product/src/examples/task-tracker/build.json",
-        "structured_runtime_example": "product/src/examples/task-tracker-structured/build.json"
+        "structured_runtime_example": "product/src/examples/task-tracker-structured/build.json",
+        "runtime_contract": {
+          "supported_packaging_profiles": [
+            "single-git",
+            "split-git"
+          ],
+          "runtime_object_optional": true,
+          "components": [
+            "ruleset",
+            "dataset"
+          ],
+          "component_default": {
+            "representation": "file"
+          },
+          "representations": {
+            "file": {
+              "files_mapping_allowed": false
+            },
+            "tree": {
+              "files_mapping": "non-empty-object",
+              "mapping_direction": "relative-output-path-to-rfc6901-source-selector",
+              "output_path_constraints": {
+                "must_be_relative": true,
+                "backslash_forbidden": true,
+                "empty_dot_dotdot_segments_forbidden": true,
+                "git_segment_forbidden": true,
+                "posix_normal_form_required": true
+              },
+              "selector_constraints": {
+                "syntax": "RFC-6901",
+                "must_resolve_in_source": true,
+                "duplicate_selectors_forbidden": true,
+                "ancestor_descendant_overlap_forbidden": true,
+                "complete_terminal_source_coverage_required": true,
+                "semantic_reconstruction_must_equal_source": true
+              }
+            }
+          }
+        }
       }
     },
     "choice_discovery": {

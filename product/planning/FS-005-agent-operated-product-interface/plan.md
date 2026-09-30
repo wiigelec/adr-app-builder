@@ -158,6 +158,7 @@ The contract shall define a complete Agent Operation Protocol containing:
 
 - the mechanically required shape of each canonical source role, including required fields and usable reference examples;
 - discovery of supported packaging profiles, provider profiles, and Git runtime representations;
+- the complete Git runtime representation contract, including file/tree defaults, tree mapping shape, output-path rules, RFC 6901 selector rules, non-overlap, complete source coverage, and semantic reconstruction;
 - the complete builder command and required arguments;
 - optional external-source arguments, their defaults, and when they are consumed;
 - builder preconditions that affect successful operation;
@@ -168,7 +169,7 @@ The contract shall define a complete Agent Operation Protocol containing:
 
 The protocol shall distinguish construction-time lineage from current runtime authority. In particular, generated Git `init-config/` material records construction inputs and shall not automatically override later authoritative runtime application, Ruleset, or Dataset material.
 
-For structured Git runtime representations, the protocol shall identify the build-definition runtime file mappings as the reconstruction mechanism for recovering canonical Ruleset or Dataset source structure.
+For structured Git runtime representations, the protocol shall identify the build-definition runtime file mappings as the reconstruction mechanism for recovering canonical Ruleset or Dataset source structure. It shall state the mapping constraints enforced by the builder so an Agent can author a valid mapping without inspecting implementation code.
 
 Supported choice discovery may reference product-owned profile and example surfaces; it shall not require the Agent to infer the operating contract from builder implementation code.
 
@@ -295,7 +296,7 @@ The repository-owned contract contains enough machine-readable operational infor
 
 ### FS-005-NR-021 — Canonical Source Contract Discovery
 
-The contract exposes the builder-enforced required source shapes for application definition, Ruleset, Dataset, and build definition and points to usable product-owned reference examples.
+The contract exposes the builder-enforced required source shapes for application definition, Ruleset, Dataset, and build definition, including the complete optional Git runtime representation grammar, and points to usable product-owned reference examples.
 
 ### FS-005-NR-022 — Supported Choice Discovery
 
@@ -331,7 +332,7 @@ Likely responsibilities include:
 - provider independence;
 - root guidance alignment;
 - CLI surface compatibility;
-- canonical source contract and example discovery;
+- canonical source contract, optional Git runtime grammar, and example discovery;
 - packaging/provider/runtime choice discovery;
 - complete builder invocation and precondition representation;
 - result/success discovery;

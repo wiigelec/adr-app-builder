@@ -2029,6 +2029,39 @@ def task_agent_authoring_contract():
     if not isinstance(structured_example, str) or not (ROOT / structured_example).is_file():
         raise SystemExit("FAIL: FS-005 structured runtime example discovery")
 
+    runtime_contract = source_contracts["build"].get("runtime_contract", {})
+    if (
+        runtime_contract.get("supported_packaging_profiles") != ["single-git", "split-git"]
+        or runtime_contract.get("runtime_object_optional") is not True
+        or runtime_contract.get("components") != ["ruleset", "dataset"]
+        or runtime_contract.get("component_default") != {"representation": "file"}
+    ):
+        raise SystemExit("FAIL: FS-005 Git runtime contract")
+    representations = runtime_contract.get("representations", {})
+    if representations.get("file") != {"files_mapping_allowed": False}:
+        raise SystemExit("FAIL: FS-005 file runtime representation contract")
+    tree = representations.get("tree", {})
+    if (
+        tree.get("files_mapping") != "non-empty-object"
+        or tree.get("mapping_direction") != "relative-output-path-to-rfc6901-source-selector"
+        or tree.get("output_path_constraints") != {
+            "must_be_relative": True,
+            "backslash_forbidden": True,
+            "empty_dot_dotdot_segments_forbidden": True,
+            "git_segment_forbidden": True,
+            "posix_normal_form_required": True,
+        }
+        or tree.get("selector_constraints") != {
+            "syntax": "RFC-6901",
+            "must_resolve_in_source": True,
+            "duplicate_selectors_forbidden": True,
+            "ancestor_descendant_overlap_forbidden": True,
+            "complete_terminal_source_coverage_required": True,
+            "semantic_reconstruction_must_equal_source": True,
+        }
+    ):
+        raise SystemExit("FAIL: FS-005 tree runtime mapping contract")
+
     choices = protocol.get("choice_discovery", {})
     if choices.get("profiles_directory") != "product/src/profiles":
         raise SystemExit("FAIL: FS-005 profile discovery surface")

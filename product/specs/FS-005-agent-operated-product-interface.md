@@ -124,7 +124,7 @@ The repository-owned agent-authoring contract shall contain enough machine-reada
 
 **Classification: M**
 
-The Agent Operation Protocol shall expose the builder-enforced required shape of application definition, Ruleset, Dataset, and build definition and shall identify usable product-owned reference examples for each source role.
+The Agent Operation Protocol shall expose the builder-enforced required shape of application definition, Ruleset, Dataset, and build definition, including the optional Git runtime representation grammar. For `tree` representation it shall define the non-empty output-path-to-RFC-6901-selector mapping, valid relative output-path constraints, selector uniqueness and non-overlap, complete source coverage, and semantic reconstruction requirement. It shall identify usable product-owned reference examples for each source role.
 
 ### FS-005-NR-022 — Supported Choice Discovery
 
@@ -154,4 +154,4 @@ For modification, the Agent Operation Protocol shall prefer an existing canonica
 
 **Classification: M**
 
-Mechanical Validation shall verify that the Agent Operation Protocol agrees with the accepted builder CLI, builder-enforced canonical source preconditions, supported product profile surfaces, operation-affecting preconditions, and referenced product-owned examples.
+Mechanical Validation shall verify that the Agent Operation Protocol agrees with the accepted builder CLI, builder-enforced canonical source and Git runtime mapping preconditions, supported product profile surfaces, operation-affecting preconditions, and referenced product-owned examples.
