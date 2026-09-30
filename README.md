@@ -29,6 +29,8 @@ The Agent translates application intent into the canonical application definitio
 
 Product use is distinct from maintaining the ADR App Builder implementation repository. Repository maintenance occurs only when explicitly requested; operating a generated application's own Git repository remains application/product operation.
 
+The machine-readable Agent Operation Protocol is `product/src/agent-authoring-contract.json`. It defines canonical source requirements, supported realization choices, complete builder invocation, output discovery, and source-authority rules for reopening or modifying applications.
+
 ## Repository surfaces
 
 - `repo/design/` - installed framework Design.

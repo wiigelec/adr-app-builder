@@ -502,6 +502,58 @@
         "structured-git-runtime",
         "lifecycle-installation"
       ]
+    },
+    {
+      "requirement": "FS-005-NR-020",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-021",
+      "tasks": [
+        "agent-authoring-contract",
+        "source-input-contracts"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-022",
+      "tasks": [
+        "agent-authoring-contract",
+        "profile-contracts",
+        "structured-git-runtime"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-023",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-024",
+      "tasks": [
+        "agent-authoring-contract",
+        "core-realization",
+        "file-packaging",
+        "git-packaging"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-025",
+      "tasks": [
+        "agent-authoring-contract",
+        "structured-git-runtime",
+        "ruleset-binding"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-026",
+      "tasks": [
+        "agent-authoring-contract",
+        "source-input-contracts",
+        "profile-contracts"
+      ]
     }
   ],
   "build_tasks": []

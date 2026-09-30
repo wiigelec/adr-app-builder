@@ -113,3 +113,45 @@ The existing canonical-source App Builder CLI shall remain available and behavio
 **Classification: B**
 
 FS-001 through FS-004 remain applicable except for the new human-facing authoring and product-operation layer explicitly defined by FS-005. Existing application definition, Ruleset, Dataset, build-definition, packaging, provider, provenance, Git, repo-spec, runtime, and post-construction semantics remain unchanged unless this specification explicitly states otherwise.
+
+### FS-005-NR-020 — Agent Operation Protocol Completeness
+
+**Classification: M**
+
+The repository-owned agent-authoring contract shall contain enough machine-readable operational information for a capable Agent to author builder-valid canonical inputs, discover supported realization choices, invoke the builder through its complete public CLI boundary, locate generated results, and acquire authoritative material for modification without inferring the operating protocol from `app_builder.py`.
+
+### FS-005-NR-021 — Canonical Source Contract Discovery
+
+**Classification: M**
+
+The Agent Operation Protocol shall expose the builder-enforced required shape of application definition, Ruleset, Dataset, and build definition and shall identify usable product-owned reference examples for each source role.
+
+### FS-005-NR-022 — Supported Choice Discovery
+
+**Classification: M**
+
+The Agent Operation Protocol shall expose the supported packaging profiles, provider profiles, and Git runtime representations, or shall identify authoritative product-owned discovery surfaces that provide those choices without requiring inference from builder implementation code.
+
+### FS-005-NR-023 — Complete Builder Invocation Protocol
+
+**Classification: M**
+
+The Agent Operation Protocol shall identify the builder command, all required CLI arguments, supported optional external-source arguments and defaults, the profile conditions under which optional external inputs are consumed, and operation-affecting preconditions including the clean App Builder worktree and absent-or-empty output directory requirements.
+
+### FS-005-NR-024 — Result and Success Discovery
+
+**Classification: M**
+
+The Agent Operation Protocol shall define successful builder completion mechanically and shall identify generated-result locations for the accepted legacy self-contained realization and packaged realization families.
+
+### FS-005-NR-025 — Modification Source Authority Protocol
+
+**Classification: B**
+
+For modification, the Agent Operation Protocol shall prefer an existing canonical source set when available; for generated Git realizations it shall distinguish current runtime application, Ruleset, and Dataset authority from construction-time `init-config/` lineage, use the build-definition runtime file mappings when structured runtime material must be reconstructed, and require user escalation rather than semantic invention when a complete authoritative source set cannot be established.
+
+### FS-005-NR-026 — Protocol-to-Builder Alignment
+
+**Classification: M**
+
+Mechanical Validation shall verify that the Agent Operation Protocol agrees with the accepted builder CLI, builder-enforced canonical source preconditions, supported product profile surfaces, operation-affecting preconditions, and referenced product-owned examples.

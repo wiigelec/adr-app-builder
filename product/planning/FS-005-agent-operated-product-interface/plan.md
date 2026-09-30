@@ -150,6 +150,28 @@ The Agent may invoke the CLI after authoring canonical inputs; humans may invoke
 
 No new natural-language CLI mode is required.
 
+### Agent Operation Protocol
+
+The agent-authoring contract shall be sufficient for a capable operating Agent to use ADR App Builder without reverse-engineering `app_builder.py`.
+
+The contract shall define a complete Agent Operation Protocol containing:
+
+- the mechanically required shape of each canonical source role, including required fields and usable reference examples;
+- discovery of supported packaging profiles, provider profiles, and Git runtime representations;
+- the complete builder command and required arguments;
+- optional external-source arguments, their defaults, and when they are consumed;
+- builder preconditions that affect successful operation;
+- result locations and the mechanical success condition;
+- creation source acquisition;
+- modification source acquisition and authority ordering; and
+- a determinate rule to ask the user rather than invent missing authority when a complete modification source set cannot be established.
+
+The protocol shall distinguish construction-time lineage from current runtime authority. In particular, generated Git `init-config/` material records construction inputs and shall not automatically override later authoritative runtime application, Ruleset, or Dataset material.
+
+For structured Git runtime representations, the protocol shall identify the build-definition runtime file mappings as the reconstruction mechanism for recovering canonical Ruleset or Dataset source structure.
+
+Supported choice discovery may reference product-owned profile and example surfaces; it shall not require the Agent to infer the operating contract from builder implementation code.
+
 ## Stable Normative Requirement IDs
 
 The canonical FS-005 normative specification shall use these IDs and classifications.
@@ -175,6 +197,13 @@ The canonical FS-005 normative specification shall use these IDs and classificat
 | FS-005-NR-017 | Root Agent Guidance Alignment | M |
 | FS-005-NR-018 | Direct CLI Compatibility | M |
 | FS-005-NR-019 | Prior Functional Set Compatibility | B |
+| FS-005-NR-020 | Agent Operation Protocol Completeness | M |
+| FS-005-NR-021 | Canonical Source Contract Discovery | M |
+| FS-005-NR-022 | Supported Choice Discovery | M |
+| FS-005-NR-023 | Complete Builder Invocation Protocol | M |
+| FS-005-NR-024 | Result and Success Discovery | M |
+| FS-005-NR-025 | Modification Source Authority Protocol | B |
+| FS-005-NR-026 | Protocol-to-Builder Alignment | M |
 
 Classification follows the accepted convention:
 
@@ -260,6 +289,34 @@ The existing canonical-source CLI remains available and behaviorally compatible 
 
 FS-001 through FS-004 remain applicable except for the new human-facing authoring/operation layer explicitly defined by FS-005.
 
+### FS-005-NR-020 — Agent Operation Protocol Completeness
+
+The repository-owned contract contains enough machine-readable operational information for a capable Agent to author valid canonical inputs, choose supported realization options, invoke the builder, locate results, and reopen or modify an application without inferring the operating protocol from builder implementation source.
+
+### FS-005-NR-021 — Canonical Source Contract Discovery
+
+The contract exposes the builder-enforced required source shapes for application definition, Ruleset, Dataset, and build definition and points to usable product-owned reference examples.
+
+### FS-005-NR-022 — Supported Choice Discovery
+
+The contract exposes supported packaging profiles, provider profiles, and Git runtime representations or their authoritative product-owned discovery surfaces.
+
+### FS-005-NR-023 — Complete Builder Invocation Protocol
+
+The contract identifies the builder command, all required CLI arguments, supported optional external-source arguments and defaults, relevant profile conditions, and operation-affecting preconditions.
+
+### FS-005-NR-024 — Result and Success Discovery
+
+The contract defines the mechanical success condition and the generated-result locations for legacy self-contained and packaged realizations.
+
+### FS-005-NR-025 — Modification Source Authority Protocol
+
+The contract distinguishes current runtime authority from construction-time `init-config/` lineage, identifies how structured runtime material is reconstructed, and requires user escalation when complete authoritative modification input cannot be established.
+
+### FS-005-NR-026 — Protocol-to-Builder Alignment
+
+Mechanical Validation verifies that the Agent Operation Protocol agrees with the accepted builder CLI, builder source preconditions, supported product profiles, and reference source surfaces.
+
 ## Planned Validation Task Decomposition
 
 Build should add real functional Validation predicates for mechanically classified requirements.
@@ -272,8 +329,14 @@ Likely responsibilities include:
 - builder/conversation separation;
 - shared create/modify declaration;
 - provider independence;
-- root guidance alignment; and
-- CLI surface compatibility.
+- root guidance alignment;
+- CLI surface compatibility;
+- canonical source contract and example discovery;
+- packaging/provider/runtime choice discovery;
+- complete builder invocation and precondition representation;
+- result/success discovery;
+- modification source-authority representation; and
+- protocol-to-builder/profile alignment.
 
 Semantic-only requirements shall not receive vacuous mechanical bindings.
 

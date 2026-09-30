@@ -27,6 +27,8 @@ Ask the user when unresolved consequential semantic ambiguity would materially c
 
 The Agent interprets user intent, but the deterministic builder consumes canonical sources rather than conversation directly. Conversation history is not a hidden fifth build input.
 
+Use `product/src/agent-authoring-contract.json` as the machine-readable Agent Operation Protocol for canonical source requirements, supported realization choices, complete builder invocation, result discovery, and modification source authority. Do not reverse-engineer those operating rules from `app_builder.py` when the contract supplies them.
+
 ## Repository ownership
 
 `repo/` is the reusable repository-development framework.

@@ -1998,6 +1998,103 @@ def task_agent_authoring_contract():
         if flag not in help_result:
             raise SystemExit(f"FAIL: FS-005 direct CLI compatibility {flag}")
 
+    protocol = contract.get("operation_protocol", {})
+    source_contracts = protocol.get("source_contracts", {})
+    expected_source_contracts = {
+        "application": {
+            "id": "non-empty-string",
+            "initialization": "object",
+            "initialization.instructions": "non-empty-string-list",
+        },
+        "ruleset": {},
+        "dataset": {
+            "instance": "object",
+            "instance.id": "non-empty-string",
+        },
+        "build": {
+            "packaging_profile": "non-empty-string",
+            "providers": "non-empty-unique-string-list",
+        },
+    }
+    if set(source_contracts) != set(expected_source_contracts):
+        raise SystemExit("FAIL: FS-005 operation protocol source contract roles")
+    for role, expected_required in expected_source_contracts.items():
+        value = source_contracts.get(role, {})
+        if value.get("json_type") != "object" or value.get("required") != expected_required:
+            raise SystemExit(f"FAIL: FS-005 operation protocol source contract {role}")
+        example = value.get("example")
+        if not isinstance(example, str) or not (ROOT / example).is_file():
+            raise SystemExit(f"FAIL: FS-005 operation protocol source example {role}")
+    structured_example = source_contracts["build"].get("structured_runtime_example")
+    if not isinstance(structured_example, str) or not (ROOT / structured_example).is_file():
+        raise SystemExit("FAIL: FS-005 structured runtime example discovery")
+
+    choices = protocol.get("choice_discovery", {})
+    if choices.get("profiles_directory") != "product/src/profiles":
+        raise SystemExit("FAIL: FS-005 profile discovery surface")
+    expected_packaging = {"self-contained-json", *PACKAGED_PROFILES}
+    if set(choices.get("packaging_profiles", [])) != expected_packaging:
+        raise SystemExit("FAIL: FS-005 packaging choice discovery")
+    if set(choices.get("providers", [])) != set(PROVIDERS):
+        raise SystemExit("FAIL: FS-005 provider choice discovery")
+    if set(choices.get("git_runtime_representations", [])) != {"file", "tree"}:
+        raise SystemExit("FAIL: FS-005 runtime representation discovery")
+    for profile_id in expected_packaging | set(PROVIDERS):
+        profile_path = PROFILES_ROOT / f"{profile_id}.json"
+        if not profile_path.is_file() or read_json(profile_path).get("id") != profile_id:
+            raise SystemExit(f"FAIL: FS-005 discovered profile does not exist {profile_id}")
+
+    invocation = protocol.get("builder_invocation", {})
+    if invocation.get("command") != ["python3", "product/src/app_builder.py"]:
+        raise SystemExit("FAIL: FS-005 builder command protocol")
+    required_flags = ["--application", "--ruleset", "--dataset", "--build", "--output-dir"]
+    if invocation.get("required_arguments") != required_flags:
+        raise SystemExit("FAIL: FS-005 complete required builder arguments")
+    for flag in required_flags + ["--adr-repository", "--repo-spec-repository"]:
+        if flag not in help_result:
+            raise SystemExit(f"FAIL: FS-005 protocol CLI alignment {flag}")
+    optional = invocation.get("optional_arguments", {})
+    if optional.get("--adr-repository", {}).get("default") != "https://github.com/wiigelec/adr.git":
+        raise SystemExit("FAIL: FS-005 ADR repository default protocol")
+    repo_spec = optional.get("--repo-spec-repository", {})
+    if (
+        repo_spec.get("default") != "https://github.com/wiigelec/repo-spec.git"
+        or repo_spec.get("consumed_for_packaging_profiles") != ["split-git"]
+    ):
+        raise SystemExit("FAIL: FS-005 repo-spec repository protocol")
+    if invocation.get("preconditions") != {
+        "app_builder_worktree": "clean",
+        "output_directory": "absent-or-empty",
+    }:
+        raise SystemExit("FAIL: FS-005 builder precondition protocol")
+
+    results = protocol.get("result_discovery", {})
+    if results.get("success") != {"exit_code": 0}:
+        raise SystemExit("FAIL: FS-005 result success protocol")
+    if results.get("self-contained-json", {}).get("provider_artifacts") != "<output-dir>/<provider>.json":
+        raise SystemExit("FAIL: FS-005 legacy result discovery")
+    packaged = results.get("packaged_profiles", {})
+    if (
+        packaged.get("package_root") != "<output-dir>/package"
+        or packaged.get("provider_artifacts") != "<output-dir>/providers/<provider>.json"
+    ):
+        raise SystemExit("FAIL: FS-005 packaged result discovery")
+
+    acquisition = protocol.get("source_acquisition", {})
+    if acquisition.get("create", {}).get("mode") != "author-complete-canonical-source-set":
+        raise SystemExit("FAIL: FS-005 creation source acquisition")
+    modify = acquisition.get("modify", {})
+    generated = modify.get("generated_git_realization", {})
+    if (
+        modify.get("preferred") != "existing-canonical-source-set"
+        or generated.get("current_runtime_material_is_authoritative_for_current_application_ruleset_and_dataset") is not True
+        or generated.get("init_config_build_path") != "init-config/build.json"
+        or generated.get("init_config_is_construction_lineage_not_automatic_runtime_authority") is not True
+        or generated.get("tree_reconstruction_uses_build_runtime_file_mappings") is not True
+        or modify.get("when_complete_authority_cannot_be_established") != "ask-user"
+    ):
+        raise SystemExit("FAIL: FS-005 modification source authority protocol")
+
 
 TASKS = {
     "profile-contracts": task_profile_contracts,
