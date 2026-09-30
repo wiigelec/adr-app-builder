@@ -4,6 +4,31 @@ ADR App Builder constructs deployable realizations of ADR-derived applications.
 
 ADR remains the Agent · Dataset · Ruleset semantic framework. App Builder owns concrete authoring, packaging, provider adaptation, deterministic generation, and realization validation.
 
+
+## Agent-operated product interface
+
+Ordinary ADR App Builder use is agent-operated:
+
+```text
+human intent
+    │
+    ▼
+AI Agent
+    │
+    ▼
+canonical sources
+    │
+    ▼
+deterministic App Builder
+    │
+    ▼
+generated realization
+```
+
+The Agent translates application intent into the canonical application definition, Ruleset, Dataset, and build definition, then invokes the deterministic builder. JSON and the CLI remain available canonical/lower-level interfaces, but ordinary product use does not require the human to author canonical JSON or operate the CLI directly.
+
+Product use is distinct from maintaining the ADR App Builder implementation repository. Repository maintenance occurs only when explicitly requested; operating a generated application's own Git repository remains application/product operation.
+
 ## Repository surfaces
 
 - `repo/design/` - installed framework Design.

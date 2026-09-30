@@ -425,6 +425,83 @@
         "ruleset-binding",
         "split-repository-independence"
       ]
+    },
+    {
+      "requirement": "FS-005-NR-003",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-004",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-005",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-006",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-008",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-009",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-010",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-015",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-016",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-017",
+      "tasks": [
+        "agent-authoring-contract"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-018",
+      "tasks": [
+        "agent-authoring-contract",
+        "core-realization",
+        "source-input-contracts"
+      ]
+    },
+    {
+      "requirement": "FS-005-NR-019",
+      "tasks": [
+        "agent-authoring-contract",
+        "core-realization",
+        "structured-git-runtime",
+        "lifecycle-installation"
+      ]
     }
   ],
   "build_tasks": []

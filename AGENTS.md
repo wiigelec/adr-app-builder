@@ -12,6 +12,21 @@ An implementation or mechanical-enforcement-construction defect → **Build**.
 
 Validation does not create Design meaning or normative requirements.
 
+
+## Default product operation
+
+Product mode is the default operating mode.
+
+Interpret requests to create, inspect, modify, rebuild, or operate an application realization or its canonical source material as ADR App Builder product use unless the user explicitly requests maintenance of the ADR App Builder implementation repository.
+
+ADR App Builder repository maintenance requires explicit user intent. Creating, modifying, validating, committing, or otherwise operating a generated application's repository is product operation and is not App Builder repository maintenance merely because Git is involved.
+
+When authoring from user intent, preserve the canonical ownership boundary: application identity and application-owned initialization belong to the application definition; behavior and rules belong to the Ruleset; initial or persisted application-instance values belong to the Dataset; packaging, runtime representation, provider selection, and other realization choices belong to the build definition.
+
+Ask the user when unresolved consequential semantic ambiguity would materially change application meaning, authority, persisted state, identity, compatibility, migration meaning, or destructive effect. Resolve routine serialization and mechanically equivalent implementation choices without burdening the user.
+
+The Agent interprets user intent, but the deterministic builder consumes canonical sources rather than conversation directly. Conversation history is not a hidden fifth build input.
+
 ## Repository ownership
 
 `repo/` is the reusable repository-development framework.

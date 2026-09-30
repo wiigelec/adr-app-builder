@@ -18,6 +18,7 @@ STRUCTURED_BASE = ROOT / "product" / "src" / "examples" / "task-tracker-structur
 BUILDER = ROOT / "product" / "src" / "app_builder.py"
 PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
+AGENT_AUTHORING_CONTRACT = ROOT / "product" / "src" / "agent-authoring-contract.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
 PACKAGED_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 CANDIDATE_ENV = "ADR_APP_BUILDER_VALIDATION_COMMITTED_CANDIDATE"
@@ -1901,6 +1902,103 @@ def task_generated_tree_determinism():
         )
 
 
+def task_agent_authoring_contract():
+    require_clean_tree()
+    contract = read_json(AGENT_AUTHORING_CONTRACT)
+
+    if contract.get("schema_version") != 1 or contract.get("default_mode") != "product":
+        raise SystemExit("FAIL: FS-005 default product mode contract")
+
+    maintenance = contract.get("repository_maintenance", {})
+    if (
+        maintenance.get("requires_explicit_user_intent") is not True
+        or maintenance.get("generated_application_repository_operations_are_maintenance") is not False
+    ):
+        raise SystemExit("FAIL: FS-005 repository-maintenance boundary")
+
+    sources = contract.get("canonical_sources", {})
+    if set(sources) != {"application", "ruleset", "dataset", "build"}:
+        raise SystemExit("FAIL: FS-005 canonical four-source boundary")
+    expected_roles = {
+        "application": "application-definition",
+        "ruleset": "ruleset",
+        "dataset": "dataset",
+        "build": "build-definition",
+    }
+    for key, role in expected_roles.items():
+        if sources.get(key, {}).get("role") != role:
+            raise SystemExit(f"FAIL: FS-005 canonical source role {key}")
+
+    authoring = contract.get("authoring", {})
+    if (
+        authoring.get("interpretation_owner") != "agent"
+        or authoring.get("builder_execution_owner") != "canonical-sources"
+        or authoring.get("hidden_conversation_build_input") is not False
+        or authoring.get("create_modify_model") != "shared-canonical-authoring"
+        or authoring.get("modify_preserves_unaffected_material") is not True
+    ):
+        raise SystemExit("FAIL: FS-005 authoring/builder separation")
+
+    ambiguity = contract.get("ambiguity", {})
+    if (
+        ambiguity.get("ask_user_when") != "consequential"
+        or ambiguity.get("mechanical_choices_without_confirmation") is not True
+    ):
+        raise SystemExit("FAIL: FS-005 consequential ambiguity policy")
+
+    if contract.get("provider_independent") is not True:
+        raise SystemExit("FAIL: FS-005 provider-independent authoring contract")
+
+    builder = contract.get("builder", {})
+    if (
+        builder.get("entrypoint") != "product/src/app_builder.py"
+        or builder.get("natural_language_interpretation") is not False
+        or builder.get("required_inputs") != ["application", "ruleset", "dataset", "build"]
+    ):
+        raise SystemExit("FAIL: FS-005 deterministic builder boundary")
+
+    human = contract.get("human_interface", {})
+    if (
+        human.get("requires_canonical_json_authoring") is not False
+        or human.get("requires_direct_cli_operation") is not False
+    ):
+        raise SystemExit("FAIL: FS-005 human-facing non-JSON contract")
+
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    for token in [
+        "Product mode is the default operating mode.",
+        "repository maintenance requires explicit user intent",
+        "generated application's repository is product operation",
+        "consequential semantic ambiguity",
+        "deterministic builder consumes canonical sources",
+    ]:
+        if token not in agents:
+            raise SystemExit(f"FAIL: FS-005 root AGENTS guidance {token}")
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for token in [
+        "human intent",
+        "AI Agent",
+        "canonical sources",
+        "deterministic App Builder",
+        "ordinary product use does not require",
+    ]:
+        if token not in readme:
+            raise SystemExit(f"FAIL: FS-005 README interaction guidance {token}")
+
+    help_result = subprocess.run(
+        [sys.executable, str(BUILDER), "--help"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    ).stdout
+    for flag in ["--application", "--ruleset", "--dataset", "--build"]:
+        if flag not in help_result:
+            raise SystemExit(f"FAIL: FS-005 direct CLI compatibility {flag}")
+
+
 TASKS = {
     "profile-contracts": task_profile_contracts,
     "core-realization": task_core_realization,
@@ -1916,6 +2014,7 @@ TASKS = {
     "split-repository-independence": task_split_repository_independence,
     "repo-spec-provenance": task_repo_spec_provenance,
     "generated-tree-determinism": task_generated_tree_determinism,
+    "agent-authoring-contract": task_agent_authoring_contract,
 }
 
 

@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "default_mode": "product",
+  "repository_maintenance": {
+    "requires_explicit_user_intent": true,
+    "generated_application_repository_operations_are_maintenance": false
+  },
+  "canonical_sources": {
+    "application": {
+      "role": "application-definition",
+      "owns": [
+        "application identity",
+        "application-owned initialization"
+      ]
+    },
+    "ruleset": {
+      "role": "ruleset",
+      "owns": [
+        "behavior",
+        "invariants",
+        "transitions",
+        "validation",
+        "compatibility",
+        "migration"
+      ]
+    },
+    "dataset": {
+      "role": "dataset",
+      "owns": [
+        "initial application-instance values",
+        "persisted application-instance values"
+      ]
+    },
+    "build": {
+      "role": "build-definition",
+      "owns": [
+        "packaging",
+        "runtime representation",
+        "provider selection",
+        "realization choices"
+      ]
+    }
+  },
+  "authoring": {
+    "interpretation_owner": "agent",
+    "builder_execution_owner": "canonical-sources",
+    "hidden_conversation_build_input": false,
+    "create_modify_model": "shared-canonical-authoring",
+    "modify_preserves_unaffected_material": true
+  },
+  "ambiguity": {
+    "ask_user_when": "consequential",
+    "consequential_dimensions": [
+      "application meaning",
+      "semantic authority",
+      "persisted Dataset state",
+      "application or instance identity",
+      "compatibility or migration meaning",
+      "destructive effect"
+    ],
+    "mechanical_choices_without_confirmation": true
+  },
+  "provider_independent": true,
+  "builder": {
+    "entrypoint": "product/src/app_builder.py",
+    "natural_language_interpretation": false,
+    "required_inputs": [
+      "application",
+      "ruleset",
+      "dataset",
+      "build"
+    ]
+  },
+  "human_interface": {
+    "requires_canonical_json_authoring": false,
+    "requires_direct_cli_operation": false
+  }
+}
