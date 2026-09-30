@@ -513,7 +513,8 @@
       "requirement": "FS-005-NR-021",
       "tasks": [
         "agent-authoring-contract",
-        "source-input-contracts"
+        "source-input-contracts",
+        "structured-git-runtime"
       ]
     },
     {
@@ -552,7 +553,8 @@
       "tasks": [
         "agent-authoring-contract",
         "source-input-contracts",
-        "profile-contracts"
+        "profile-contracts",
+        "structured-git-runtime"
       ]
     }
   ],
