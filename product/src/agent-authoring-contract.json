@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "default_mode": "product",
+  "repository_maintenance": {
+    "requires_explicit_user_intent": true,
+    "generated_application_repository_operations_are_maintenance": false
+  },
+  "canonical_sources": {
+    "application": {
+      "role": "application-definition",
+      "owns": [
+        "application identity",
+        "application-owned initialization"
+      ]
+    },
+    "ruleset": {
+      "role": "ruleset",
+      "owns": [
+        "behavior",
+        "invariants",
+        "transitions",
+        "validation",
+        "compatibility",
+        "migration"
+      ]
+    },
+    "dataset": {
+      "role": "dataset",
+      "owns": [
+        "initial application-instance values",
+        "persisted application-instance values"
+      ]
+    },
+    "build": {
+      "role": "build-definition",
+      "owns": [
+        "packaging",
+        "runtime representation",
+        "provider selection",
+        "realization choices"
+      ]
+    }
+  },
+  "authoring": {
+    "interpretation_owner": "agent",
+    "builder_execution_owner": "canonical-sources",
+    "hidden_conversation_build_input": false,
+    "create_modify_model": "shared-canonical-authoring",
+    "modify_preserves_unaffected_material": true
+  },
+  "ambiguity": {
+    "ask_user_when": "consequential",
+    "consequential_dimensions": [
+      "application meaning",
+      "semantic authority",
+      "persisted Dataset state",
+      "application or instance identity",
+      "compatibility or migration meaning",
+      "destructive effect"
+    ],
+    "mechanical_choices_without_confirmation": true
+  },
+  "provider_independent": true,
+  "builder": {
+    "entrypoint": "product/src/app_builder.py",
+    "natural_language_interpretation": false,
+    "required_inputs": [
+      "application",
+      "ruleset",
+      "dataset",
+      "build"
+    ]
+  },
+  "human_interface": {
+    "requires_canonical_json_authoring": false,
+    "requires_direct_cli_operation": false
+  },
+  "operation_protocol": {
+    "source_contracts": {
+      "application": {
+        "json_type": "object",
+        "required": {
+          "id": "non-empty-string",
+          "initialization": "object",
+          "initialization.instructions": "non-empty-string-list"
+        },
+        "example": "product/src/examples/task-tracker/application.json"
+      },
+      "ruleset": {
+        "json_type": "object",
+        "required": {},
+        "example": "product/src/examples/task-tracker/ruleset.json"
+      },
+      "dataset": {
+        "json_type": "object",
+        "required": {
+          "instance": "object",
+          "instance.id": "non-empty-string"
+        },
+        "example": "product/src/examples/task-tracker/dataset.json"
+      },
+      "build": {
+        "json_type": "object",
+        "required": {
+          "packaging_profile": "non-empty-string",
+          "providers": "non-empty-unique-string-list"
+        },
+        "example": "product/src/examples/task-tracker/build.json",
+        "structured_runtime_example": "product/src/examples/task-tracker-structured/build.json",
+        "runtime_contract": {
+          "supported_packaging_profiles": [
+            "single-git",
+            "split-git"
+          ],
+          "runtime_object_optional": true,
+          "components": [
+            "ruleset",
+            "dataset"
+          ],
+          "component_default": {
+            "representation": "file"
+          },
+          "representations": {
+            "file": {
+              "files_mapping_allowed": false
+            },
+            "tree": {
+              "files_mapping": "non-empty-object",
+              "mapping_direction": "relative-output-path-to-rfc6901-source-selector",
+              "output_path_constraints": {
+                "must_be_relative": true,
+                "backslash_forbidden": true,
+                "empty_dot_dotdot_segments_forbidden": true,
+                "git_segment_forbidden": true,
+                "posix_normal_form_required": true
+              },
+              "selector_constraints": {
+                "syntax": "RFC-6901",
+                "must_resolve_in_source": true,
+                "duplicate_selectors_forbidden": true,
+                "ancestor_descendant_overlap_forbidden": true,
+                "complete_terminal_source_coverage_required": true,
+                "semantic_reconstruction_must_equal_source": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "choice_discovery": {
+      "profiles_directory": "product/src/profiles",
+      "packaging_profiles": [
+        "self-contained-json",
+        "single-file",
+        "split-files",
+        "single-git",
+        "split-git"
+      ],
+      "providers": [
+        "generic-self-contained",
+        "microsoft-copilot"
+      ],
+      "git_runtime_representations": [
+        "file",
+        "tree"
+      ]
+    },
+    "builder_invocation": {
+      "command": [
+        "python3",
+        "product/src/app_builder.py"
+      ],
+      "required_arguments": [
+        "--application",
+        "--ruleset",
+        "--dataset",
+        "--build",
+        "--output-dir"
+      ],
+      "optional_arguments": {
+        "--adr-repository": {
+          "default": "https://github.com/wiigelec/adr.git"
+        },
+        "--repo-spec-repository": {
+          "default": "https://github.com/wiigelec/repo-spec.git",
+          "consumed_for_packaging_profiles": [
+            "split-git"
+          ]
+        }
+      },
+      "preconditions": {
+        "app_builder_worktree": "clean",
+        "output_directory": "absent-or-empty"
+      }
+    },
+    "result_discovery": {
+      "success": {
+        "exit_code": 0
+      },
+      "self-contained-json": {
+        "provider_artifacts": "<output-dir>/<provider>.json"
+      },
+      "packaged_profiles": {
+        "package_root": "<output-dir>/package",
+        "provider_artifacts": "<output-dir>/providers/<provider>.json"
+      }
+    },
+    "source_acquisition": {
+      "create": {
+        "mode": "author-complete-canonical-source-set"
+      },
+      "modify": {
+        "preferred": "existing-canonical-source-set",
+        "generated_git_realization": {
+          "current_runtime_material_is_authoritative_for_current_application_ruleset_and_dataset": true,
+          "init_config_build_path": "init-config/build.json",
+          "init_config_is_construction_lineage_not_automatic_runtime_authority": true,
+          "tree_reconstruction_uses_build_runtime_file_mappings": true
+        },
+        "other_authoritative_material": "use-only-when-complete-canonical-meaning-can-be-established",
+        "when_complete_authority_cannot_be_established": "ask-user"
+      }
+    }
+  }
+}

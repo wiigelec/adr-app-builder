@@ -18,6 +18,7 @@ STRUCTURED_BASE = ROOT / "product" / "src" / "examples" / "task-tracker-structur
 BUILDER = ROOT / "product" / "src" / "app_builder.py"
 PROFILES_ROOT = ROOT / "product" / "src" / "profiles"
 MANIFEST = ROOT / "product" / "validation" / "requirement-evaluation.json"
+AGENT_AUTHORING_CONTRACT = ROOT / "product" / "src" / "agent-authoring-contract.json"
 PROVIDERS = ["generic-self-contained", "microsoft-copilot"]
 PACKAGED_PROFILES = ["single-file", "split-files", "single-git", "split-git"]
 CANDIDATE_ENV = "ADR_APP_BUILDER_VALIDATION_COMMITTED_CANDIDATE"
@@ -1901,6 +1902,233 @@ def task_generated_tree_determinism():
         )
 
 
+def task_agent_authoring_contract():
+    require_clean_tree()
+    contract = read_json(AGENT_AUTHORING_CONTRACT)
+
+    if contract.get("schema_version") != 1 or contract.get("default_mode") != "product":
+        raise SystemExit("FAIL: FS-005 default product mode contract")
+
+    maintenance = contract.get("repository_maintenance", {})
+    if (
+        maintenance.get("requires_explicit_user_intent") is not True
+        or maintenance.get("generated_application_repository_operations_are_maintenance") is not False
+    ):
+        raise SystemExit("FAIL: FS-005 repository-maintenance boundary")
+
+    sources = contract.get("canonical_sources", {})
+    if set(sources) != {"application", "ruleset", "dataset", "build"}:
+        raise SystemExit("FAIL: FS-005 canonical four-source boundary")
+    expected_roles = {
+        "application": "application-definition",
+        "ruleset": "ruleset",
+        "dataset": "dataset",
+        "build": "build-definition",
+    }
+    for key, role in expected_roles.items():
+        if sources.get(key, {}).get("role") != role:
+            raise SystemExit(f"FAIL: FS-005 canonical source role {key}")
+
+    authoring = contract.get("authoring", {})
+    if (
+        authoring.get("interpretation_owner") != "agent"
+        or authoring.get("builder_execution_owner") != "canonical-sources"
+        or authoring.get("hidden_conversation_build_input") is not False
+        or authoring.get("create_modify_model") != "shared-canonical-authoring"
+        or authoring.get("modify_preserves_unaffected_material") is not True
+    ):
+        raise SystemExit("FAIL: FS-005 authoring/builder separation")
+
+    ambiguity = contract.get("ambiguity", {})
+    if (
+        ambiguity.get("ask_user_when") != "consequential"
+        or ambiguity.get("mechanical_choices_without_confirmation") is not True
+    ):
+        raise SystemExit("FAIL: FS-005 consequential ambiguity policy")
+
+    if contract.get("provider_independent") is not True:
+        raise SystemExit("FAIL: FS-005 provider-independent authoring contract")
+
+    builder = contract.get("builder", {})
+    if (
+        builder.get("entrypoint") != "product/src/app_builder.py"
+        or builder.get("natural_language_interpretation") is not False
+        or builder.get("required_inputs") != ["application", "ruleset", "dataset", "build"]
+    ):
+        raise SystemExit("FAIL: FS-005 deterministic builder boundary")
+
+    human = contract.get("human_interface", {})
+    if (
+        human.get("requires_canonical_json_authoring") is not False
+        or human.get("requires_direct_cli_operation") is not False
+    ):
+        raise SystemExit("FAIL: FS-005 human-facing non-JSON contract")
+
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    for token in [
+        "Product mode is the default operating mode.",
+        "repository maintenance requires explicit user intent",
+        "generated application's repository is product operation",
+        "consequential semantic ambiguity",
+        "deterministic builder consumes canonical sources",
+    ]:
+        if token not in agents:
+            raise SystemExit(f"FAIL: FS-005 root AGENTS guidance {token}")
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for token in [
+        "human intent",
+        "AI Agent",
+        "canonical sources",
+        "deterministic App Builder",
+        "ordinary product use does not require",
+    ]:
+        if token not in readme:
+            raise SystemExit(f"FAIL: FS-005 README interaction guidance {token}")
+
+    help_result = subprocess.run(
+        [sys.executable, str(BUILDER), "--help"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    ).stdout
+    for flag in ["--application", "--ruleset", "--dataset", "--build"]:
+        if flag not in help_result:
+            raise SystemExit(f"FAIL: FS-005 direct CLI compatibility {flag}")
+
+    protocol = contract.get("operation_protocol", {})
+    source_contracts = protocol.get("source_contracts", {})
+    expected_source_contracts = {
+        "application": {
+            "id": "non-empty-string",
+            "initialization": "object",
+            "initialization.instructions": "non-empty-string-list",
+        },
+        "ruleset": {},
+        "dataset": {
+            "instance": "object",
+            "instance.id": "non-empty-string",
+        },
+        "build": {
+            "packaging_profile": "non-empty-string",
+            "providers": "non-empty-unique-string-list",
+        },
+    }
+    if set(source_contracts) != set(expected_source_contracts):
+        raise SystemExit("FAIL: FS-005 operation protocol source contract roles")
+    for role, expected_required in expected_source_contracts.items():
+        value = source_contracts.get(role, {})
+        if value.get("json_type") != "object" or value.get("required") != expected_required:
+            raise SystemExit(f"FAIL: FS-005 operation protocol source contract {role}")
+        example = value.get("example")
+        if not isinstance(example, str) or not (ROOT / example).is_file():
+            raise SystemExit(f"FAIL: FS-005 operation protocol source example {role}")
+    structured_example = source_contracts["build"].get("structured_runtime_example")
+    if not isinstance(structured_example, str) or not (ROOT / structured_example).is_file():
+        raise SystemExit("FAIL: FS-005 structured runtime example discovery")
+
+    runtime_contract = source_contracts["build"].get("runtime_contract", {})
+    if (
+        runtime_contract.get("supported_packaging_profiles") != ["single-git", "split-git"]
+        or runtime_contract.get("runtime_object_optional") is not True
+        or runtime_contract.get("components") != ["ruleset", "dataset"]
+        or runtime_contract.get("component_default") != {"representation": "file"}
+    ):
+        raise SystemExit("FAIL: FS-005 Git runtime contract")
+    representations = runtime_contract.get("representations", {})
+    if representations.get("file") != {"files_mapping_allowed": False}:
+        raise SystemExit("FAIL: FS-005 file runtime representation contract")
+    tree = representations.get("tree", {})
+    if (
+        tree.get("files_mapping") != "non-empty-object"
+        or tree.get("mapping_direction") != "relative-output-path-to-rfc6901-source-selector"
+        or tree.get("output_path_constraints") != {
+            "must_be_relative": True,
+            "backslash_forbidden": True,
+            "empty_dot_dotdot_segments_forbidden": True,
+            "git_segment_forbidden": True,
+            "posix_normal_form_required": True,
+        }
+        or tree.get("selector_constraints") != {
+            "syntax": "RFC-6901",
+            "must_resolve_in_source": True,
+            "duplicate_selectors_forbidden": True,
+            "ancestor_descendant_overlap_forbidden": True,
+            "complete_terminal_source_coverage_required": True,
+            "semantic_reconstruction_must_equal_source": True,
+        }
+    ):
+        raise SystemExit("FAIL: FS-005 tree runtime mapping contract")
+
+    choices = protocol.get("choice_discovery", {})
+    if choices.get("profiles_directory") != "product/src/profiles":
+        raise SystemExit("FAIL: FS-005 profile discovery surface")
+    expected_packaging = {"self-contained-json", *PACKAGED_PROFILES}
+    if set(choices.get("packaging_profiles", [])) != expected_packaging:
+        raise SystemExit("FAIL: FS-005 packaging choice discovery")
+    if set(choices.get("providers", [])) != set(PROVIDERS):
+        raise SystemExit("FAIL: FS-005 provider choice discovery")
+    if set(choices.get("git_runtime_representations", [])) != {"file", "tree"}:
+        raise SystemExit("FAIL: FS-005 runtime representation discovery")
+    for profile_id in expected_packaging | set(PROVIDERS):
+        profile_path = PROFILES_ROOT / f"{profile_id}.json"
+        if not profile_path.is_file() or read_json(profile_path).get("id") != profile_id:
+            raise SystemExit(f"FAIL: FS-005 discovered profile does not exist {profile_id}")
+
+    invocation = protocol.get("builder_invocation", {})
+    if invocation.get("command") != ["python3", "product/src/app_builder.py"]:
+        raise SystemExit("FAIL: FS-005 builder command protocol")
+    required_flags = ["--application", "--ruleset", "--dataset", "--build", "--output-dir"]
+    if invocation.get("required_arguments") != required_flags:
+        raise SystemExit("FAIL: FS-005 complete required builder arguments")
+    for flag in required_flags + ["--adr-repository", "--repo-spec-repository"]:
+        if flag not in help_result:
+            raise SystemExit(f"FAIL: FS-005 protocol CLI alignment {flag}")
+    optional = invocation.get("optional_arguments", {})
+    if optional.get("--adr-repository", {}).get("default") != "https://github.com/wiigelec/adr.git":
+        raise SystemExit("FAIL: FS-005 ADR repository default protocol")
+    repo_spec = optional.get("--repo-spec-repository", {})
+    if (
+        repo_spec.get("default") != "https://github.com/wiigelec/repo-spec.git"
+        or repo_spec.get("consumed_for_packaging_profiles") != ["split-git"]
+    ):
+        raise SystemExit("FAIL: FS-005 repo-spec repository protocol")
+    if invocation.get("preconditions") != {
+        "app_builder_worktree": "clean",
+        "output_directory": "absent-or-empty",
+    }:
+        raise SystemExit("FAIL: FS-005 builder precondition protocol")
+
+    results = protocol.get("result_discovery", {})
+    if results.get("success") != {"exit_code": 0}:
+        raise SystemExit("FAIL: FS-005 result success protocol")
+    if results.get("self-contained-json", {}).get("provider_artifacts") != "<output-dir>/<provider>.json":
+        raise SystemExit("FAIL: FS-005 legacy result discovery")
+    packaged = results.get("packaged_profiles", {})
+    if (
+        packaged.get("package_root") != "<output-dir>/package"
+        or packaged.get("provider_artifacts") != "<output-dir>/providers/<provider>.json"
+    ):
+        raise SystemExit("FAIL: FS-005 packaged result discovery")
+
+    acquisition = protocol.get("source_acquisition", {})
+    if acquisition.get("create", {}).get("mode") != "author-complete-canonical-source-set":
+        raise SystemExit("FAIL: FS-005 creation source acquisition")
+    modify = acquisition.get("modify", {})
+    generated = modify.get("generated_git_realization", {})
+    if (
+        modify.get("preferred") != "existing-canonical-source-set"
+        or generated.get("current_runtime_material_is_authoritative_for_current_application_ruleset_and_dataset") is not True
+        or generated.get("init_config_build_path") != "init-config/build.json"
+        or generated.get("init_config_is_construction_lineage_not_automatic_runtime_authority") is not True
+        or generated.get("tree_reconstruction_uses_build_runtime_file_mappings") is not True
+        or modify.get("when_complete_authority_cannot_be_established") != "ask-user"
+    ):
+        raise SystemExit("FAIL: FS-005 modification source authority protocol")
+
+
 TASKS = {
     "profile-contracts": task_profile_contracts,
     "core-realization": task_core_realization,
@@ -1916,6 +2144,7 @@ TASKS = {
     "split-repository-independence": task_split_repository_independence,
     "repo-spec-provenance": task_repo_spec_provenance,
     "generated-tree-determinism": task_generated_tree_determinism,
+    "agent-authoring-contract": task_agent_authoring_contract,
 }
 
 
